@@ -193,4 +193,4 @@ def transcribe_audio(filepath: str) -> str:
     TODO: 集成FunASR或阿里云语音识别API
     目前返回模拟结果
     """
-    return "这是音频转文字的模拟结果，实际使用时需要集成语音识别服务。"
+    return "这是音频转文字的模拟结果，我还没部署好语音模型，显存不够了QAQ"

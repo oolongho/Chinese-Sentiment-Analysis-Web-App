@@ -5,7 +5,25 @@ const Footer: React.FC = () => {
   const [copied, setCopied] = useState(false);
 
   const copyEmail = () => {
-    navigator.clipboard.writeText('1678132646@qq.com');
+    const email = '1678132646@qq.com';
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(email);
+    } else {
+      const textArea = document.createElement('textarea');
+      textArea.value = email;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+      } catch (err) {
+        console.error('复制失败:', err);
+      }
+      document.body.removeChild(textArea);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
