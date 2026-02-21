@@ -16,6 +16,7 @@ from ..config import (
     load_external_api_config, save_external_api_config
 )
 from ..utils import verify_password, create_token, verify_token, save_upload_file, validate_excel_file
+from ..sentiment import get_lexicon_analyzer
 
 router = APIRouter(prefix='/api/training', tags=['管理平台'])
 
@@ -250,6 +251,8 @@ async def add_dictionary_word(
         with open(filepath, 'a', encoding='utf-8') as f:
             f.write(f"{request.word},{request.score}\n")
     
+    get_lexicon_analyzer().reload_dictionaries()
+    
     return {'success': True, 'word': request.word, 'score': request.score}
 
 
@@ -284,6 +287,8 @@ async def remove_dictionary_word(
     with open(filepath, 'w', encoding='utf-8') as f:
         f.writelines(lines)
     
+    get_lexicon_analyzer().reload_dictionaries()
+    
     return {'success': True, 'removed': request.word}
 
 
@@ -299,6 +304,16 @@ async def get_dictionary_stats(authorization: Optional[str] = Header(None)):
         stats[f'{dict_type}_count'] = len(words)
     
     return stats
+
+
+@router.post('/dictionary/reload')
+async def reload_dictionary(authorization: Optional[str] = Header(None)):
+    """重新加载词典到内存"""
+    check_auth(authorization)
+    
+    get_lexicon_analyzer().reload_dictionaries()
+    
+    return {'success': True, 'message': '词典已重新加载'}
 
 
 @router.get('/external-api')

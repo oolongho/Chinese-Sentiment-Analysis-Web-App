@@ -11,13 +11,12 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, Dict
 
-from ..sentiment import LexiconAnalyzer, ModelAnalyzer
+from ..sentiment import ModelAnalyzer, get_lexicon_analyzer
 from ..config import DATA_DIR
 from ..services import call_audio_api, call_text_api
 
 router = APIRouter(prefix='/api/audio', tags=['音频分析'])
 
-lexicon_analyzer = LexiconAnalyzer()
 model_analyzer = ModelAnalyzer()
 
 UPLOAD_DIR = os.path.join(DATA_DIR, 'audio')
@@ -92,7 +91,7 @@ async def analyze_audio(file: UploadFile = File(...)):
     transcription = transcribe_audio(filepath)
     
     lexicon_start = time.time()
-    lexicon_result = lexicon_analyzer.analyze(transcription)
+    lexicon_result = get_lexicon_analyzer().analyze(transcription)
     lexicon_time = time.time() - lexicon_start
     
     model_start = time.time()

@@ -9,7 +9,7 @@
 - **三通道分析**：
   - 深度学习模型（基于 `hfl/chinese-roberta-wwm-ext`）
   - 情感词典分析（基于规则）
-  - 外部API分析（支持DeepSeek等API）
+  - 外部API分析（支持OpenAI格式）
 - **训练管理平台**：支持模型训练、词典管理、外部API配置
 
 ## 技术栈
@@ -69,7 +69,7 @@ npm run dev
 - 后端API：http://localhost:8000
 - API文档：http://localhost:8000/docs
 
-## 模型训练
+## 模型训练（待完善）
 
 1. 准备标注数据（`data/labeled_data.xlsx`）
 2. 访问管理平台（http://localhost:5173/training）

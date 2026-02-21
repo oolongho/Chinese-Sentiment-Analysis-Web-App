@@ -287,6 +287,24 @@ const TrainingPage: React.FC = () => {
     }
   };
 
+  const reloadDictionary = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/dictionary/reload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        alert('词典已重新加载，分析时将使用最新词典！');
+      }
+    } catch (error) {
+      console.error('重新加载词典失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDictionaryChange = (type: DictionaryType) => {
     setActiveDictionary(type);
     loadDictionary(type);
@@ -612,7 +630,7 @@ const TrainingPage: React.FC = () => {
               <div className="space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <h3 className="text-xl font-bold text-gray-900">词典管理</h3>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap items-center">
                     {(Object.keys(DICTIONARY_CONFIG) as DictionaryType[]).map(type => {
                       const config = DICTIONARY_CONFIG[type];
                       return (
@@ -629,6 +647,25 @@ const TrainingPage: React.FC = () => {
                         </button>
                       );
                     })}
+                    <button
+                      onClick={reloadDictionary}
+                      disabled={loading}
+                      className="px-4 py-2.5 rounded-xl font-medium transition-all duration-300 bg-green-500 hover:bg-green-600 text-white shadow-lg flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      应用更改
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border border-amber-200">
+                  <div className="flex items-center gap-2 text-amber-700">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm font-medium">添加或删除词汇后，请点击"应用更改"按钮使词典生效。</span>
                   </div>
                 </div>
 

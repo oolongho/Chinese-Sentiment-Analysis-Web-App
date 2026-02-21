@@ -9,12 +9,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
-from ..sentiment import LexiconAnalyzer, ModelAnalyzer
+from ..sentiment import LexiconAnalyzer, ModelAnalyzer, get_lexicon_analyzer
 from ..services import call_text_api
 
 router = APIRouter(prefix='/api/text', tags=['文本分析'])
 
-lexicon_analyzer = LexiconAnalyzer()
 model_analyzer = ModelAnalyzer()
 
 
@@ -69,7 +68,7 @@ async def analyze_text(request: TextRequest):
         raise HTTPException(status_code=400, detail='文本不能为空')
     
     start_time = time.time()
-    lexicon_result = lexicon_analyzer.analyze(request.text)
+    lexicon_result = get_lexicon_analyzer().analyze(request.text)
     lexicon_time = time.time() - start_time
     
     start_time = time.time()
@@ -126,7 +125,7 @@ async def analyze_lexicon(request: TextRequest):
         raise HTTPException(status_code=400, detail='文本不能为空')
     
     start_time = time.time()
-    result = lexicon_analyzer.analyze(request.text)
+    result = get_lexicon_analyzer().analyze(request.text)
     processing_time = time.time() - start_time
     
     result['processing_time'] = round(processing_time, 4)
@@ -163,7 +162,7 @@ async def analyze_batch(request: BatchTextRequest):
             continue
         
         start_time = time.time()
-        lexicon_result = lexicon_analyzer.analyze(text)
+        lexicon_result = get_lexicon_analyzer().analyze(text)
         lexicon_time = time.time() - start_time
         
         start_time = time.time()
