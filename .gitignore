@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 venv/
+__pycache__/
+*.pyc
+*.pyo
 
 # Build outputs
 dist/
@@ -39,44 +42,31 @@ pids
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage directory
 coverage/
 *.lcov
-
-# nyc test coverage
 .nyc_output
 
 # Dependency directories
 jspm_packages/
 
-# Optional npm cache directory
+# npm cache
 .npm
-
-# Optional eslint cache
 .eslintcache
-
-# Optional REPL history
 .node_repl_history
-
-# Output of 'npm pack'
 *.tgz
-
-# Yarn Integrity file
 .yarn-integrity
 
-# parcel-bundler cache
+# Cache
 .cache
 .parcel-cache
 
-# Next.js build output
+# Next.js / Nuxt.js
 .next
 out
-
-# Nuxt.js build / generate output
 .nuxt
-dist
 
-# Storybook build outputs
+# Storybook
 .out
 .storybook-out
 
@@ -84,11 +74,30 @@ dist
 tmp/
 temp/
 
-# Model files
-models/*.pt
-models/*.bin
+# Trae IDE
+.trae/
 
-# Data files
-data/*.csv
-data/*.json
-data/*.txt
+# Model files (too large for GitHub)
+backend/models/
+*.pt
+*.bin
+*.safetensors
+
+# Training checkpoints
+checkpoint-*/
+
+# Audio uploads
+data/audio/
+
+# Data files (optional - uncomment if you don't want to track data)
+# data/*.xlsx
+# data/*.csv
+# data/*.json
+
+# External API config (contains API keys)
+data/external_api_config.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3

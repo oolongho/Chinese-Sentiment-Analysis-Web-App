@@ -1,8 +1,11 @@
 fastapi
 uvicorn[standard]
-pytorch
-Transformers
+torch
+transformers
 jieba
 pandas
-funasr
+openpyxl
+opencc
 python-multipart
+PyJWT
+accelerate

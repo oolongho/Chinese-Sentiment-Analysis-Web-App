@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import TextAnalysisPage from './pages/TextAnalysisPage';
 import AudioAnalysisPage from './pages/AudioAnalysisPage';
 import PerformancePage from './pages/PerformancePage';
+import TrainingPage from './pages/TrainingPage';
 import './App.css';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
             <Route path="/text-analysis" element={<TextAnalysisPage />} />
             <Route path="/audio-analysis" element={<AudioAnalysisPage />} />
             <Route path="/performance" element={<PerformancePage />} />
+            <Route path="/training" element={<TrainingPage />} />
           </Routes>
         </main>
         <Footer />
