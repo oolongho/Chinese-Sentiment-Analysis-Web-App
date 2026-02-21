@@ -93,3 +93,7 @@ temp/
 
 # Model files
 models/
+
+# Some data
+data/training/
+data/audio/
