@@ -52,15 +52,33 @@ const Footer: React.FC = () => {
           
           <div>
             <h4 className="text-lg font-semibold mb-4 text-white">技术栈</h4>
-            <div className="flex flex-wrap gap-2">
-              {['React', 'TypeScript', 'FastAPI', 'PyTorch', 'Tailwind CSS'].map((tech) => (
-                <span 
-                  key={tech}
-                  className="px-3 py-1 bg-white/10 rounded-full text-sm text-gray-300 hover:bg-blue-500/20 hover:text-blue-400 transition-all duration-300 cursor-pointer"
-                >
-                  {tech}
-                </span>
-              ))}
+            <div className="space-y-2">
+              <div>
+                <p className="text-xs text-gray-500 mb-1.5">前端</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['React', 'TypeScript', 'Tailwind CSS', 'Vite'].map((tech) => (
+                    <span 
+                      key={tech}
+                      className="px-2 py-0.5 bg-white/10 rounded-full text-xs text-gray-400 hover:bg-blue-500/20 hover:text-blue-400 transition-all duration-300 cursor-pointer"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1.5">后端</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['FastAPI', 'PyTorch', 'Transformers', 'Uvicorn'].map((tech) => (
+                    <span 
+                      key={tech}
+                      className="px-2 py-0.5 bg-white/10 rounded-full text-xs text-gray-400 hover:bg-green-500/20 hover:text-green-400 transition-all duration-300 cursor-pointer"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>

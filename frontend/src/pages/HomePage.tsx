@@ -75,7 +75,7 @@ const HomePage: React.FC = () => {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">文本情感分析</h3>
               <p className="text-gray-600 leading-relaxed mb-4">
-                支持单条和批量文本输入，通过双通道分析技术，精准识别情感极性
+                支持单条和批量文本输入，通过多通道分析技术，精准识别情感极性
               </p>
               <div className="flex flex-wrap gap-2">
                 <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-medium">正面/负面/中性</span>
@@ -125,7 +125,7 @@ const HomePage: React.FC = () => {
               工作原理
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              双通道分析技术，确保结果的准确性和可靠性
+              多通道分析技术，确保结果的准确性和可靠性
             </p>
           </div>
           
@@ -149,9 +149,9 @@ const HomePage: React.FC = () => {
                 <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                   <span className="text-2xl font-bold text-white">2</span>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">双通道分析</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">多通道分析</h3>
                 <p className="text-gray-600">
-                  系统同时使用情感词典法和深度学习模型进行分析
+                  系统同时使用情感词典、深度学习模型和外部API进行分析
                 </p>
               </div>
             </div>

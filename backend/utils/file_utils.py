@@ -52,13 +52,13 @@ def validate_excel_file(filepath: str) -> Tuple[bool, Optional[str], Optional[in
         else:
             df = pd.read_excel(filepath)
         
-        required_columns = ['评价']
+        required_columns = ['文本']
         for col in required_columns:
             if col not in df.columns:
                 return False, f"缺少必需列: {col}", None
         
-        df = df.dropna(subset=['评价'])
-        df = df[df['评价'].str.len() >= 5]
+        df = df.dropna(subset=['文本'])
+        df = df[df['文本'].str.len() >= 5]
         
         return True, None, len(df)
         

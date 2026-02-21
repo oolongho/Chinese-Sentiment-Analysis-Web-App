@@ -1,54 +1,100 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+const API_BASE = 'http://localhost:8000/api/performance';
+
+interface TextAnalysisStats {
+  count: number;
+  total_time: number;
+  avg_time: number;
+  cpu_peak: number;
+  cpu_avg: number;
+  gpu_peak: number | null;
+  gpu_avg: number | null;
+}
+
+interface SentimentCounts {
+  positive: number;
+  negative: number;
+  neutral: number;
+}
+
+interface ModelMetrics {
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+}
+
+interface CurrentUsage {
+  cpu_percent: number;
+  gpu_percent: number | null;
+  gpu_available: boolean;
+}
+
+interface Statistics {
+  total_analyses: number;
+  text_analyses: {
+    model: TextAnalysisStats;
+    lexicon: TextAnalysisStats;
+    external: TextAnalysisStats;
+  };
+  sentiment_counts: SentimentCounts;
+  model_metrics: {
+    model: ModelMetrics;
+    lexicon: ModelMetrics;
+    external: ModelMetrics;
+  };
+  current_usage: CurrentUsage;
+}
+
+interface CpuGpuDataPoint {
+  timestamp: number;
+  cpu_percent: number;
+  gpu_percent: number | null;
+}
 
 const PerformancePage: React.FC = () => {
-  const performanceData = {
-    textAnalysis: {
-      deepLearning: {
-        averageTime: 0.045,
-        accuracy: 0.89,
-        f1Score: 0.87,
-        precision: 0.88,
-        recall: 0.86
-      },
-      lexicon: {
-        averageTime: 0.012,
-        accuracy: 0.82,
-        f1Score: 0.80,
-        precision: 0.81,
-        recall: 0.79
+  const [stats, setStats] = useState<Statistics | null>(null);
+  const [cpuGpuHistory, setCpuGpuHistory] = useState<CpuGpuDataPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [statsRes, historyRes] = await Promise.all([
+        fetch(`${API_BASE}/stats`),
+        fetch(`${API_BASE}/cpu-gpu-history?limit=50`)
+      ]);
+      
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats(statsData);
       }
-    },
-    audioAnalysis: {
-      voiceModel: {
-        averageTime: 0.120,
-        accuracy: 0.91,
-        f1Score: 0.89,
-        precision: 0.90,
-        recall: 0.88
-      },
-      deepLearning: {
-        averageTime: 0.050,
-        accuracy: 0.89,
-        f1Score: 0.87,
-        precision: 0.88,
-        recall: 0.86
-      },
-      lexicon: {
-        averageTime: 0.010,
-        accuracy: 0.82,
-        f1Score: 0.80,
-        precision: 0.81,
-        recall: 0.79
+      
+      if (historyRes.ok) {
+        const historyData = await historyRes.json();
+        const formattedData = historyData.map((point: CpuGpuDataPoint) => ({
+          ...point,
+          time: new Date(point.timestamp * 1000).toLocaleTimeString('zh-CN', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          })
+        }));
+        setCpuGpuHistory(formattedData);
       }
-    },
-    statistics: {
-      totalAnalyses: 1247,
-      positiveCount: 789,
-      negativeCount: 234,
-      neutralCount: 224,
-      averageResponseTime: 0.068
+    } catch (error) {
+      console.error('获取性能数据失败:', error);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   const StatCard = ({ title, value, icon, gradient, delay = 0 }: { title: string; value: string | number; icon: React.ReactNode; gradient: string; delay?: number }) => (
     <div 
@@ -65,17 +111,17 @@ const PerformancePage: React.FC = () => {
     </div>
   );
 
-  const MetricBar = ({ label, value, color, maxValue = 1 }: { label: string; value: number; color: string; maxValue?: number }) => {
-    const percentage = (value / maxValue) * 100;
+  const MetricBar = ({ label, value, color }: { label: string; value: number; color: string }) => {
+    const percentage = value * 100;
     return (
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
+      <div className="mb-3">
+        <div className="flex justify-between items-center mb-1">
           <span className="text-sm text-gray-600">{label}</span>
-          <span className="text-sm font-semibold text-gray-900">{(value * 100).toFixed(1)}%</span>
+          <span className="text-sm font-semibold text-gray-900">{percentage.toFixed(1)}%</span>
         </div>
-        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
           <div 
-            className={`h-2.5 rounded-full transition-all duration-1000 ease-out ${color}`}
+            className={`h-2 rounded-full transition-all duration-500 ${color}`}
             style={{ width: `${percentage}%` }}
           ></div>
         </div>
@@ -83,7 +129,15 @@ const PerformancePage: React.FC = () => {
     );
   };
 
-  const ModelCard = ({ title, subtitle, data, gradient, icon }: { title: string; subtitle: string; data: any; gradient: string; icon: React.ReactNode }) => (
+  const ModelCard = ({ title, subtitle, stats, metrics, gradient, icon, showPeak = true }: { 
+    title: string; 
+    subtitle: string; 
+    stats: TextAnalysisStats; 
+    metrics: ModelMetrics;
+    gradient: string; 
+    icon: React.ReactNode 
+    showPeak?: boolean
+  }) => (
     <div className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 p-6 border border-gray-100 group">
       <div className="flex items-center gap-3 mb-6">
         <div className={`w-12 h-12 ${gradient} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
@@ -95,21 +149,73 @@ const PerformancePage: React.FC = () => {
         </div>
       </div>
       
-      <div className="space-y-1">
-        <MetricBar label="准确率" value={data.accuracy} color="bg-gradient-to-r from-blue-500 to-cyan-400" />
-        <MetricBar label="精确率" value={data.precision} color="bg-gradient-to-r from-purple-500 to-pink-400" />
-        <MetricBar label="召回率" value={data.recall} color="bg-gradient-to-r from-orange-500 to-yellow-400" />
-        <MetricBar label="F1值" value={data.f1Score} color="bg-gradient-to-r from-green-500 to-emerald-400" />
-      </div>
-      
-      <div className="mt-4 pt-4 border-t border-gray-100">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-500">平均分析时间</span>
-          <span className="text-lg font-bold text-gray-900">{(data.averageTime * 1000).toFixed(1)}ms</span>
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm text-gray-600">分析次数</span>
+          <span className="text-lg font-bold text-gray-900">{stats.count}</span>
+        </div>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm text-gray-600">平均响应时间</span>
+          <span className="text-lg font-bold text-gray-900">{(stats.avg_time * 1000).toFixed(1)}ms</span>
         </div>
       </div>
+      
+      {metrics.accuracy > 0 && (
+        <div className="space-y-1 pt-4 border-t border-gray-100">
+          <MetricBar label="准确率" value={metrics.accuracy} color="bg-gradient-to-r from-blue-500 to-cyan-400" />
+          <MetricBar label="精确率" value={metrics.precision} color="bg-gradient-to-r from-purple-500 to-pink-400" />
+          <MetricBar label="召回率" value={metrics.recall} color="bg-gradient-to-r from-orange-500 to-yellow-400" />
+          <MetricBar label="F1值" value={metrics.f1_score} color="bg-gradient-to-r from-green-500 to-emerald-400" />
+        </div>
+      )}
+      
+      {showPeak && (stats.cpu_peak > 0 || stats.gpu_peak) && (
+        <div className="mb-4 pt-4 border-t border-gray-100">
+          <div className="text-sm font-medium text-gray-700 mb-2">资源使用峰值</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <div className="text-xs text-gray-500 mb-1">CPU 峰值</div>
+              <div className="text-xl font-bold text-blue-600">{stats.cpu_peak.toFixed(1)}%</div>
+              <div className="text-xs text-gray-400 mt-1">平均 {stats.cpu_avg.toFixed(1)}%</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <div className="text-xs text-gray-500 mb-1">GPU 峰值</div>
+              <div className="text-xl font-bold text-green-600">
+                {stats.gpu_peak !== null ? `${stats.gpu_peak.toFixed(1)}%` : 'N/A'}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {stats.gpu_avg !== null ? `平均 ${stats.gpu_avg.toFixed(1)}%` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-orange-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-500">加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const sentimentCounts = stats?.sentiment_counts || { positive: 0, negative: 0, neutral: 0 };
+  const textAnalyses = stats?.text_analyses || { 
+    model: { count: 0, total_time: 0, avg_time: 0, cpu_peak: 0, cpu_avg: 0, gpu_peak: null, gpu_avg: null }, 
+    lexicon: { count: 0, total_time: 0, avg_time: 0, cpu_peak: 0, cpu_avg: 0, gpu_peak: null, gpu_avg: null }, 
+    external: { count: 0, total_time: 0, avg_time: 0, cpu_peak: 0, cpu_avg: 0, gpu_peak: null, gpu_avg: null } 
+  };
+  const modelMetrics = stats?.model_metrics || { 
+    model: { accuracy: 0, precision: 0, recall: 0, f1_score: 0 }, 
+    lexicon: { accuracy: 0, precision: 0, recall: 0, f1_score: 0 }, 
+    external: { accuracy: 0, precision: 0, recall: 0, f1_score: 0 } 
+  };
+  const currentUsage = stats?.current_usage || { cpu_percent: 0, gpu_percent: null, gpu_available: false };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-orange-50 py-12 px-4">
@@ -129,31 +235,31 @@ const PerformancePage: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="总分析次数"
-            value={performanceData.statistics.totalAnalyses.toLocaleString()}
+            value={(stats?.total_analyses || 0).toLocaleString()}
             icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>}
             gradient="bg-gradient-to-br from-blue-500 to-cyan-400"
             delay={0}
           />
           <StatCard
             title="正面情感"
-            value={performanceData.statistics.positiveCount}
+            value={sentimentCounts.positive}
             icon={<span className="text-2xl">😊</span>}
             gradient="bg-gradient-to-br from-green-500 to-emerald-400"
             delay={100}
           />
           <StatCard
             title="负面情感"
-            value={performanceData.statistics.negativeCount}
+            value={sentimentCounts.negative}
             icon={<span className="text-2xl">😔</span>}
             gradient="bg-gradient-to-br from-red-500 to-rose-400"
             delay={200}
           />
           <StatCard
             title="中性情感"
-            value={performanceData.statistics.neutralCount}
+            value={sentimentCounts.neutral}
             icon={<span className="text-2xl">😐</span>}
             gradient="bg-gradient-to-br from-yellow-500 to-amber-400"
             delay={300}
@@ -163,34 +269,89 @@ const PerformancePage: React.FC = () => {
         <div className="bg-white rounded-3xl shadow-lg p-8 mb-8 border border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">平均响应时间</h2>
+              <h2 className="text-xl font-bold text-gray-900">CPU/GPU 使用率监控</h2>
             </div>
-            <div className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-cyan-400">
-              {(performanceData.statistics.averageResponseTime * 1000).toFixed(1)}ms
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                <span className="text-gray-600">CPU: {currentUsage.cpu_percent}%</span>
+              </div>
+              {currentUsage.gpu_available && (
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="text-gray-600">GPU: {currentUsage.gpu_percent}%</span>
+                </div>
+              )}
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {['10ms', '25ms', '50ms', '100ms', '200ms'].map((time, index) => (
-              <div key={time} className="text-center">
-                <div className={`h-2 rounded-full ${index < 3 ? 'bg-gradient-to-r from-green-500 to-emerald-400' : index < 4 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' : 'bg-gradient-to-r from-red-500 to-rose-400'}`}></div>
-                <span className="text-xs text-gray-500 mt-1 block">{time}</span>
+          {cpuGpuHistory.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={cpuGpuHistory}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="time" 
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <YAxis 
+                    domain={[0, 100]} 
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickLine={{ stroke: '#e5e7eb' }}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                    formatter={(value: number) => [`${value}%`, '']}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="cpu_percent" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    dot={false}
+                    name="CPU 使用率"
+                    activeDot={{ r: 4, fill: '#3b82f6' }}
+                  />
+                  {currentUsage.gpu_available && (
+                    <Line 
+                      type="monotone" 
+                      dataKey="gpu_percent" 
+                      stroke="#22c55e" 
+                      strokeWidth={2}
+                      dot={false}
+                      name="GPU 使用率"
+                      activeDot={{ r: 4, fill: '#22c55e' }}
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-400">
+              <div className="text-center">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <p>暂无监控数据，进行文本分析后将显示</p>
               </div>
-            ))}
-          </div>
-          <div className="mt-4 flex justify-between text-sm text-gray-500">
-            <span>快速</span>
-            <span>中等</span>
-            <span>较慢</span>
-          </div>
+            </div>
+          )}
         </div>
 
-        <div className="mb-12">
+        <div>
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
               <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,55 +361,31 @@ const PerformancePage: React.FC = () => {
             <h2 className="text-xl font-bold text-gray-900">文本分析性能</h2>
           </div>
           
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             <ModelCard
-              title="深度学习模型"
+              title="本地深度学习模型"
               subtitle="基于神经网络的情感分析"
-              data={performanceData.textAnalysis.deepLearning}
+              stats={textAnalyses.model}
+              metrics={modelMetrics.model}
               gradient="bg-gradient-to-br from-blue-500 to-cyan-400"
               icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>}
             />
             <ModelCard
               title="情感词典分析"
               subtitle="基于词典规则的情感分析"
-              data={performanceData.textAnalysis.lexicon}
+              stats={textAnalyses.lexicon}
+              metrics={modelMetrics.lexicon}
               gradient="bg-gradient-to-br from-purple-500 to-pink-400"
               icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
             />
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-              <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">音频分析性能</h2>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-6">
             <ModelCard
-              title="语音大模型"
-              subtitle="直接分析语音情感"
-              data={performanceData.audioAnalysis.voiceModel}
-              gradient="bg-gradient-to-br from-purple-500 to-pink-400"
-              icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>}
-            />
-            <ModelCard
-              title="文字大模型"
-              subtitle="转文字后分析"
-              data={performanceData.audioAnalysis.deepLearning}
-              gradient="bg-gradient-to-br from-blue-500 to-cyan-400"
-              icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>}
-            />
-            <ModelCard
-              title="情感词典"
-              subtitle="基于词典规则"
-              data={performanceData.audioAnalysis.lexicon}
-              gradient="bg-gradient-to-br from-orange-500 to-yellow-400"
-              icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
+              title="外部API分析"
+              subtitle="调用云端AI服务分析"
+              stats={textAnalyses.external}
+              metrics={modelMetrics.external}
+              gradient="bg-gradient-to-br from-green-500 to-emerald-400"
+              icon={<svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>}
+              showPeak={false}
             />
           </div>
         </div>

@@ -10,6 +10,10 @@ interface AnalysisResult {
       confidence: number;
       analysisTime: number;
       scores: { [key: string]: number };
+      cpuPeak: number;
+      cpuAvg: number;
+      gpuPeak: number | null;
+      gpuAvg: number | null;
     };
     lexicon: {
       sentiment: string;
@@ -17,6 +21,10 @@ interface AnalysisResult {
       analysisTime: number;
       score: number;
       sentimentWords: any[];
+      cpuPeak: number;
+      cpuAvg: number;
+      gpuPeak: number | null;
+      gpuAvg: number | null;
     };
     external: {
       success: boolean;
@@ -104,7 +112,11 @@ const TextAnalysisPage: React.FC = () => {
                        item.model_result.sentiment === '负面' ? 'negative' : 'neutral',
             confidence: item.model_result.confidence,
             analysisTime: item.model_result.processing_time,
-            scores: item.model_result.scores
+            scores: item.model_result.scores,
+            cpuPeak: item.model_result.cpu_peak || 0,
+            cpuAvg: item.model_result.cpu_avg || 0,
+            gpuPeak: item.model_result.gpu_peak,
+            gpuAvg: item.model_result.gpu_avg
           },
           lexicon: {
             sentiment: item.lexicon_result.sentiment === '正面' ? 'positive' : 
@@ -112,7 +124,11 @@ const TextAnalysisPage: React.FC = () => {
             confidence: item.lexicon_result.confidence,
             analysisTime: item.lexicon_result.processing_time,
             score: item.lexicon_result.score,
-            sentimentWords: item.lexicon_result.sentiment_words || []
+            sentimentWords: item.lexicon_result.sentiment_words || [],
+            cpuPeak: item.lexicon_result.cpu_peak || 0,
+            cpuAvg: item.lexicon_result.cpu_avg || 0,
+            gpuPeak: item.lexicon_result.gpu_peak,
+            gpuAvg: item.lexicon_result.gpu_avg
           },
           external: externalDataResults[index] ? {
             success: externalDataResults[index].success,
@@ -188,6 +204,82 @@ const TextAnalysisPage: React.FC = () => {
   const goToPage = (page: number) => {
     if (page >= 0 && page < resultsList.length) {
       setCurrentPage(page);
+    }
+  };
+
+  const exportResults = async () => {
+    if (resultsList.length === 0) return;
+
+    const exportData = resultsList.map(r => ({
+      text: r.text,
+      model_sentiment: r.models.deepLearning.sentiment === 'positive' ? '正面' : 
+                       r.models.deepLearning.sentiment === 'negative' ? '负面' : '中性',
+      model_confidence: r.models.deepLearning.confidence,
+      lexicon_sentiment: r.models.lexicon.sentiment === 'positive' ? '正面' : 
+                         r.models.lexicon.sentiment === 'negative' ? '负面' : '中性',
+      lexicon_confidence: r.models.lexicon.confidence,
+      external_sentiment: r.models.external?.sentiment === 'positive' ? '正面' : 
+                          r.models.external?.sentiment === 'negative' ? '负面' : '中性',
+      external_confidence: r.models.external?.confidence || 0
+    }));
+
+    try {
+      const response = await fetch(`${API_BASE}/text/export-results`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ results: exportData, format: 'xlsx' })
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'analysis_results.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('导出失败:', error);
+    }
+  };
+
+  const exportPerformance = async () => {
+    if (resultsList.length === 0) return;
+
+    const exportData = resultsList.map(r => ({
+      text: r.text,
+      model_time: Math.round(r.models.deepLearning.analysisTime * 1000),
+      model_cpu_peak: r.models.deepLearning.cpuPeak,
+      model_gpu_peak: r.models.deepLearning.gpuPeak || 0,
+      lexicon_time: Math.round(r.models.lexicon.analysisTime * 1000),
+      lexicon_cpu_peak: r.models.lexicon.cpuPeak,
+      lexicon_gpu_peak: r.models.lexicon.gpuPeak || 0,
+      external_time: r.models.external ? Math.round(r.models.external.analysisTime * 1000) : 0
+    }));
+
+    try {
+      const response = await fetch(`${API_BASE}/text/export-performance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ results: exportData, format: 'xlsx' })
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'performance_data.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('导出失败:', error);
     }
   };
 
@@ -379,6 +471,27 @@ const TextAnalysisPage: React.FC = () => {
                 <div className="px-3 py-1 bg-blue-50 rounded-full text-blue-600 text-sm font-medium">
                   共 {resultsList.length} 条结果
                 </div>
+              </div>
+              
+              <div className="flex gap-3 mb-4">
+                <button
+                  onClick={exportResults}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-400 hover:from-green-600 hover:to-emerald-500 text-white font-medium rounded-xl transition-all duration-300 shadow-md hover:shadow-lg"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  导出结果
+                </button>
+                <button
+                  onClick={exportPerformance}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-medium rounded-xl transition-all duration-300 shadow-md hover:shadow-lg"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  导出性能数据
+                </button>
               </div>
               <p className="text-gray-700 bg-gradient-to-r from-gray-50 to-blue-50 p-5 rounded-2xl border border-gray-100 leading-relaxed">
                 {currentResult.text}

@@ -12,7 +12,8 @@ from .routers import (
     text_analysis_router,
     audio_analysis_router,
     performance_router,
-    training_router
+    training_router,
+    evaluation_router
 )
 
 app = FastAPI(
@@ -35,6 +36,7 @@ app.include_router(text_analysis_router)
 app.include_router(audio_analysis_router)
 app.include_router(performance_router)
 app.include_router(training_router)
+app.include_router(evaluation_router)
 
 
 @app.get('/')

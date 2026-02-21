@@ -18,17 +18,14 @@ from ..config import (
 from ..utils import verify_password, create_token, verify_token, save_upload_file, validate_excel_file
 from .text_analysis import reload_lexicon as reload_text_lexicon
 from .audio_analysis import reload_lexicon as reload_audio_lexicon
+from ..services.training_service import (
+    start_training, get_training_status, cancel_training, reset_training_status
+)
 
 router = APIRouter(prefix='/api/training', tags=['管理平台'])
 
 DICTIONARY_DIR = DATA_DIR
-TRAINING_STATUS = {
-    'status': 'idle',
-    'progress': 0,
-    'current_epoch': 0,
-    'total_epochs': 0,
-    'metrics': {}
-}
+UPLOADED_DATA_FILE = None
 
 
 class LoginRequest(BaseModel):
@@ -140,6 +137,8 @@ async def upload_training_data(
     """上传训练数据"""
     check_auth(authorization)
     
+    global UPLOADED_DATA_FILE
+    
     filepath, original_name = await save_upload_file(file, 'training')
     
     valid, error, count = validate_excel_file(filepath)
@@ -148,12 +147,44 @@ async def upload_training_data(
         os.remove(filepath)
         raise HTTPException(status_code=400, detail=error)
     
+    UPLOADED_DATA_FILE = filepath
+    
     return {
         'success': True,
         'filename': original_name,
         'count': count,
         'filepath': filepath
     }
+
+
+@router.get('/uploaded-data')
+async def get_uploaded_data(authorization: Optional[str] = Header(None)):
+    """获取已上传的数据文件信息"""
+    check_auth(authorization)
+    
+    if UPLOADED_DATA_FILE and os.path.exists(UPLOADED_DATA_FILE):
+        import pandas as pd
+        df = pd.read_excel(UPLOADED_DATA_FILE)
+        return {
+            'uploaded': True,
+            'filepath': UPLOADED_DATA_FILE,
+            'count': len(df),
+            'columns': df.columns.tolist()
+        }
+    
+    default_file = os.path.join(DATA_DIR, 'labeled_data.xlsx')
+    if os.path.exists(default_file):
+        import pandas as pd
+        df = pd.read_excel(default_file)
+        return {
+            'uploaded': True,
+            'filepath': default_file,
+            'count': len(df),
+            'columns': df.columns.tolist(),
+            'is_default': True
+        }
+    
+    return {'uploaded': False, 'count': 0}
 
 
 @router.get('/params')
@@ -186,39 +217,56 @@ async def update_training_params(
 
 
 @router.post('/start')
-async def start_training(
-    data_file: str,
-    authorization: Optional[str] = Header(None)
-):
+async def start_model_training(authorization: Optional[str] = Header(None)):
     """开始模型训练"""
     check_auth(authorization)
     
-    global TRAINING_STATUS
+    data_file = UPLOADED_DATA_FILE
+    if not data_file or not os.path.exists(data_file):
+        default_file = os.path.join(DATA_DIR, 'labeled_data.xlsx')
+        if os.path.exists(default_file):
+            data_file = default_file
+        else:
+            raise HTTPException(status_code=400, detail='请先上传训练数据')
     
-    if TRAINING_STATUS['status'] == 'training':
+    success = start_training(data_file, TRAINING_PARAMS)
+    
+    if not success:
         raise HTTPException(status_code=400, detail='已有训练任务在进行中')
-    
-    TRAINING_STATUS = {
-        'status': 'training',
-        'progress': 0,
-        'current_epoch': 0,
-        'total_epochs': TRAINING_PARAMS['epochs'],
-        'metrics': {},
-        'start_time': datetime.now().isoformat()
-    }
     
     return {
         'success': True,
         'message': '训练任务已启动',
-        'status': TRAINING_STATUS
+        'data_file': data_file
     }
 
 
 @router.get('/status')
-async def get_training_status(authorization: Optional[str] = Header(None)):
+async def get_status(authorization: Optional[str] = Header(None)):
     """获取训练状态"""
     check_auth(authorization)
-    return TRAINING_STATUS
+    return get_training_status()
+
+
+@router.post('/cancel')
+async def cancel_training_task(authorization: Optional[str] = Header(None)):
+    """取消训练任务"""
+    check_auth(authorization)
+    
+    success = cancel_training()
+    
+    if not success:
+        raise HTTPException(status_code=400, detail='没有正在进行的训练任务')
+    
+    return {'success': True, 'message': '训练已取消'}
+
+
+@router.post('/reset')
+async def reset_status(authorization: Optional[str] = Header(None)):
+    """重置训练状态"""
+    check_auth(authorization)
+    reset_training_status()
+    return {'success': True, 'message': '训练状态已重置'}
 
 
 @router.get('/dictionary')

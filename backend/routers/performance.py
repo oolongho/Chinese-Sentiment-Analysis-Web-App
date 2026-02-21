@@ -2,134 +2,272 @@
 # -*- coding: utf-8 -*-
 """
 性能统计路由
+功能：
+1. 记录分析统计数据（区分不同分析类型）
+2. 存储 CPU/GPU 峰值数据
+3. 提供性能指标统计
 """
 
 import os
 import json
 from datetime import datetime
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from ..config import DATA_DIR
+from ..services.system_monitor import system_monitor
 
 router = APIRouter(prefix='/api/performance', tags=['性能统计'])
 
 STATS_FILE = os.path.join(DATA_DIR, 'stats.json')
 
 
-class Statistics(BaseModel):
-    total_analyses: int
-    text_analyses: int
-    audio_analyses: int
-    positive_count: int
-    negative_count: int
-    neutral_count: int
-    avg_processing_time: float
+class TextAnalysisStats(BaseModel):
+    count: int = 0
+    total_time: float = 0.0
+    avg_time: float = 0.0
+    cpu_peak: float = 0.0
+    cpu_avg: float = 0.0
+    gpu_peak: Optional[float] = None
+    gpu_avg: Optional[float] = None
+
+
+class SentimentCounts(BaseModel):
+    positive: int = 0
+    negative: int = 0
+    neutral: int = 0
 
 
 class ModelMetrics(BaseModel):
-    accuracy: float
-    precision: float
-    recall: float
-    f1_score: float
+    accuracy: float = 0.0
+    precision: float = 0.0
+    recall: float = 0.0
+    f1_score: float = 0.0
+
+
+class Statistics(BaseModel):
+    total_analyses: int = 0
+    text_analyses: Dict[str, TextAnalysisStats] = {}
+    sentiment_counts: SentimentCounts = SentimentCounts()
+    model_metrics: Dict[str, ModelMetrics] = {}
+
+
+class CpuGpuDataPoint(BaseModel):
+    timestamp: float
+    cpu_percent: float
+    gpu_percent: Optional[float] = None
 
 
 def load_stats() -> Dict:
-    """加载统计数据"""
     if os.path.exists(STATS_FILE):
-        with open(STATS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(STATS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if 'text_analyses' not in data:
+                data['text_analyses'] = {
+                    'model': _default_analyzer_stats(),
+                    'lexicon': _default_analyzer_stats(),
+                    'external': _default_analyzer_stats()
+                }
+            if 'sentiment_counts' not in data:
+                old_positive = data.pop('positive_count', 0)
+                old_negative = data.pop('negative_count', 0)
+                old_neutral = data.pop('neutral_count', 0)
+                data['sentiment_counts'] = {
+                    'positive': old_positive,
+                    'negative': old_negative,
+                    'neutral': old_neutral
+                }
+            if 'model_metrics' not in data:
+                data['model_metrics'] = {
+                    'model': _default_metrics(),
+                    'lexicon': _default_metrics(),
+                    'external': _default_metrics()
+                }
+            for analyzer in ['model', 'lexicon', 'external']:
+                if analyzer in data['text_analyses']:
+                    stats = data['text_analyses'][analyzer]
+                    if 'cpu_peak' not in stats:
+                        stats['cpu_peak'] = 0.0
+                    if 'cpu_avg' not in stats:
+                        stats['cpu_avg'] = 0.0
+                    if 'gpu_peak' not in stats:
+                        stats['gpu_peak'] = None
+                    if 'gpu_avg' not in stats:
+                        stats['gpu_avg'] = None
+            return data
+        except Exception:
+            pass
+    
+    return _default_stats()
+
+
+def _default_analyzer_stats() -> Dict:
     return {
-        'total_analyses': 0,
-        'text_analyses': 0,
-        'audio_analyses': 0,
-        'positive_count': 0,
-        'negative_count': 0,
-        'neutral_count': 0,
-        'avg_processing_time': 0.0,
-        'history': []
+        'count': 0,
+        'total_time': 0.0,
+        'avg_time': 0.0,
+        'cpu_peak': 0.0,
+        'cpu_avg': 0.0,
+        'gpu_peak': None,
+        'gpu_avg': None
     }
 
 
-def save_stats(stats: Dict):
-    """保存统计数据"""
-    with open(STATS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(stats, f, ensure_ascii=False, indent=2)
-
-
-@router.get('/stats', response_model=Statistics)
-async def get_statistics():
-    """获取性能统计"""
-    stats = load_stats()
-    return Statistics(**stats)
-
-
-@router.get('/metrics')
-async def get_model_metrics():
-    """获取模型性能指标"""
+def _default_metrics() -> Dict:
     return {
-        'lexicon_analyzer': {
-            'accuracy': 0.85,
-            'precision': 0.83,
-            'recall': 0.86,
-            'f1_score': 0.84
+        'accuracy': 0.0,
+        'precision': 0.0,
+        'recall': 0.0,
+        'f1_score': 0.0
+    }
+
+
+def _default_stats() -> Dict:
+    return {
+        'total_analyses': 0,
+        'text_analyses': {
+            'model': _default_analyzer_stats(),
+            'lexicon': _default_analyzer_stats(),
+            'external': _default_analyzer_stats()
         },
-        'model_analyzer': {
-            'accuracy': 0.9478,
-            'precision': 0.9456,
-            'recall': 0.9423,
-            'f1_score': 0.9418
+        'sentiment_counts': {
+            'positive': 0,
+            'negative': 0,
+            'neutral': 0
+        },
+        'model_metrics': {
+            'model': _default_metrics(),
+            'lexicon': _default_metrics(),
+            'external': _default_metrics()
         }
     }
 
 
-@router.get('/history')
-async def get_history(limit: int = 50):
-    """获取分析历史"""
-    stats = load_stats()
-    history = stats.get('history', [])
-    return history[-limit:]
+def save_stats(stats: Dict):
+    os.makedirs(os.path.dirname(STATS_FILE), exist_ok=True)
+    with open(STATS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(stats, f, ensure_ascii=False, indent=2)
 
 
-@router.post('/record')
-async def record_analysis(
+def record_analysis(
     analysis_type: str,
     sentiment: str,
-    processing_time: float
+    processing_time: float,
+    analyzer_type: str = 'model',
+    cpu_peak: float = 0.0,
+    cpu_avg: float = 0.0,
+    gpu_peak: Optional[float] = None,
+    gpu_avg: Optional[float] = None
 ):
-    """记录分析结果"""
     stats = load_stats()
     
     stats['total_analyses'] += 1
     
-    if analysis_type == 'text':
-        stats['text_analyses'] += 1
-    else:
-        stats['audio_analyses'] += 1
+    if analyzer_type in stats['text_analyses']:
+        analyzer_stats = stats['text_analyses'][analyzer_type]
+        analyzer_stats['count'] += 1
+        analyzer_stats['total_time'] += processing_time
+        analyzer_stats['avg_time'] = analyzer_stats['total_time'] / analyzer_stats['count']
+        
+        if cpu_peak > analyzer_stats.get('cpu_peak', 0):
+            analyzer_stats['cpu_peak'] = cpu_peak
+        if cpu_avg > 0:
+            old_avg = analyzer_stats.get('cpu_avg', 0)
+            count = analyzer_stats['count']
+            analyzer_stats['cpu_avg'] = (old_avg * (count - 1) + cpu_avg) / count
+        
+        if gpu_peak is not None:
+            current_gpu_peak = analyzer_stats.get('gpu_peak')
+            if current_gpu_peak is None or gpu_peak > current_gpu_peak:
+                analyzer_stats['gpu_peak'] = gpu_peak
+        if gpu_avg is not None:
+            old_gpu_avg = analyzer_stats.get('gpu_avg')
+            count = analyzer_stats['count']
+            if old_gpu_avg is None:
+                analyzer_stats['gpu_avg'] = gpu_avg
+            else:
+                analyzer_stats['gpu_avg'] = (old_gpu_avg * (count - 1) + gpu_avg) / count
     
-    if sentiment == '正面':
-        stats['positive_count'] += 1
-    elif sentiment == '负面':
-        stats['negative_count'] += 1
-    else:
-        stats['neutral_count'] += 1
-    
-    total = stats['total_analyses']
-    stats['avg_processing_time'] = (
-        (stats['avg_processing_time'] * (total - 1) + processing_time) / total
-    )
-    
-    stats['history'].append({
-        'timestamp': datetime.now().isoformat(),
-        'type': analysis_type,
-        'sentiment': sentiment,
-        'processing_time': processing_time
-    })
-    
-    if len(stats['history']) > 1000:
-        stats['history'] = stats['history'][-1000:]
+    sentiment_key = 'positive' if sentiment == '正面' else ('negative' if sentiment == '负面' else 'neutral')
+    stats['sentiment_counts'][sentiment_key] = stats['sentiment_counts'].get(sentiment_key, 0) + 1
     
     save_stats(stats)
     
+    system_monitor.record_snapshot()
+    
+    return True
+
+
+def update_model_metrics(analyzer_type: str, metrics: Dict):
+    stats = load_stats()
+    
+    if analyzer_type not in stats['model_metrics']:
+        stats['model_metrics'][analyzer_type] = _default_metrics()
+    
+    stats['model_metrics'][analyzer_type].update(metrics)
+    save_stats(stats)
+
+
+@router.get('/stats')
+async def get_statistics():
+    stats = load_stats()
+    current_usage = system_monitor.get_current_usage()
+    
+    return {
+        'total_analyses': stats.get('total_analyses', 0),
+        'text_analyses': stats.get('text_analyses', {}),
+        'sentiment_counts': stats.get('sentiment_counts', {}),
+        'model_metrics': stats.get('model_metrics', {}),
+        'current_usage': current_usage
+    }
+
+
+@router.get('/cpu-gpu-history')
+async def get_cpu_gpu_history(limit: int = 50):
+    history = system_monitor.get_history(limit)
+    return history
+
+
+@router.get('/current-usage')
+async def get_current_usage():
+    return system_monitor.get_current_usage()
+
+
+@router.get('/metrics')
+async def get_model_metrics():
+    stats = load_stats()
+    return stats.get('model_metrics', {})
+
+
+@router.post('/record')
+async def record_analysis_endpoint(
+    analysis_type: str,
+    sentiment: str,
+    processing_time: float,
+    analyzer_type: str = 'model',
+    cpu_peak: float = 0.0,
+    cpu_avg: float = 0.0,
+    gpu_peak: Optional[float] = None,
+    gpu_avg: Optional[float] = None
+):
+    success = record_analysis(
+        analysis_type, sentiment, processing_time, analyzer_type,
+        cpu_peak, cpu_avg, gpu_peak, gpu_avg
+    )
+    return {'success': success}
+
+
+@router.post('/metrics/update')
+async def update_metrics_endpoint(analyzer_type: str, metrics: Dict):
+    update_model_metrics(analyzer_type, metrics)
     return {'success': True}
+
+
+@router.post('/reset')
+async def reset_statistics():
+    default_stats = _default_stats()
+    save_stats(default_stats)
+    system_monitor.clear_history()
+    return {'success': True, 'message': '统计数据已重置'}
