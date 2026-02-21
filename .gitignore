@@ -93,10 +93,3 @@ temp/
 
 # Model files
 models/
-
-# Data files
-data/*.xlsx
-data/*.csv
-data/*.json
-data/*.txt
-data/audio/
