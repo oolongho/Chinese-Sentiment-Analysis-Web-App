@@ -101,3 +101,7 @@ data/external_api_config.json
 *.db
 *.sqlite
 *.sqlite3
+
+# Project docs (not for GitHub)
+开发计划.md
+开题报告.md
