@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-
-const API_BASE = 'http://localhost:8000/api/performance';
+import { API_ENDPOINTS } from '../config/api';
 
 interface TextAnalysisStats {
   count: number;
@@ -62,8 +61,8 @@ const PerformancePage: React.FC = () => {
   const fetchData = useCallback(async () => {
     try {
       const [statsRes, historyRes] = await Promise.all([
-        fetch(`${API_BASE}/stats`),
-        fetch(`${API_BASE}/cpu-gpu-history?limit=50`)
+        fetch(`${API_ENDPOINTS.performance}/stats`),
+        fetch(`${API_ENDPOINTS.performance}/cpu-gpu-history?limit=50`)
       ]);
       
       if (statsRes.ok) {

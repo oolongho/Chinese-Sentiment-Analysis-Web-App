@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-const API_BASE = 'http://localhost:8000/api';
+import { API_ENDPOINTS } from '../config/api';
 
 interface AnalysisResult {
   text: string;
@@ -54,7 +53,7 @@ const TextAnalysisPage: React.FC = () => {
     try {
       const token = localStorage.getItem('training_token');
       if (token) {
-        const response = await fetch(`${API_BASE}/training/external-api/check`, {
+        const response = await fetch(`${API_ENDPOINTS.training}/external-api/check`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
@@ -80,12 +79,12 @@ const TextAnalysisPage: React.FC = () => {
     
     try {
       const [localResponse, externalResponse] = await Promise.all([
-        fetch(`${API_BASE}/text/analyze/batch`, {
+        fetch(`${API_ENDPOINTS.text}/analyze/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ texts: textLines })
         }),
-        externalApiConfigured ? fetch(`${API_BASE}/text/analyze/external/batch`, {
+        externalApiConfigured ? fetch(`${API_ENDPOINTS.text}/analyze/external/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ texts: textLines })
@@ -224,7 +223,7 @@ const TextAnalysisPage: React.FC = () => {
     }));
 
     try {
-      const response = await fetch(`${API_BASE}/text/export-results`, {
+      const response = await fetch(`${API_ENDPOINTS.text}/export-results`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ results: exportData, format: 'xlsx' })
@@ -261,7 +260,7 @@ const TextAnalysisPage: React.FC = () => {
     }));
 
     try {
-      const response = await fetch(`${API_BASE}/text/export-performance`, {
+      const response = await fetch(`${API_ENDPOINTS.text}/export-performance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ results: exportData, format: 'xlsx' })

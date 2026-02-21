@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-const API_BASE = 'http://localhost:8000/api/training';
+import { API_ENDPOINTS } from '../config/api';
 
 interface DictionaryWord {
   word: string;
@@ -197,7 +196,7 @@ const TrainingPage: React.FC = () => {
 
   const pollEvaluationStatus = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/evaluation/status');
+      const response = await fetch(`${API_ENDPOINTS.evaluation}/status`);
       if (response.ok) {
         const data = await response.json();
         setEvaluationStatus({
@@ -218,7 +217,7 @@ const TrainingPage: React.FC = () => {
 
   const fetchEvaluationResults = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/evaluation/results');
+      const response = await fetch(`${API_ENDPOINTS.evaluation}/results`);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -242,7 +241,7 @@ const TrainingPage: React.FC = () => {
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://localhost:8000/api/evaluation/upload', {
+      const response = await fetch(`${API_ENDPOINTS.evaluation}/upload`, {
         method: 'POST',
         body: formData
       });
@@ -264,7 +263,7 @@ const TrainingPage: React.FC = () => {
 
   const startEvaluation = async (includeExternal: boolean = false) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/evaluation/run?include_external=${includeExternal}`, {
+      const response = await fetch(`${API_ENDPOINTS.evaluation}/run?include_external=${includeExternal}`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -287,7 +286,7 @@ const TrainingPage: React.FC = () => {
 
   const pollTrainingStatus = async () => {
     try {
-      const response = await fetch(`${API_BASE}/status`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/status`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -301,7 +300,7 @@ const TrainingPage: React.FC = () => {
 
   const verifyToken = async (savedToken: string) => {
     try {
-      const response = await fetch(`${API_BASE}/verify`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/verify`, {
         headers: { 'Authorization': `Bearer ${savedToken}` }
       });
       if (response.ok) {
@@ -326,7 +325,7 @@ const TrainingPage: React.FC = () => {
     setLoginError('');
     
     try {
-      const response = await fetch(`${API_BASE}/login`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
@@ -366,7 +365,7 @@ const TrainingPage: React.FC = () => {
 
   const loadParams = async (authToken: string) => {
     try {
-      const response = await fetch(`${API_BASE}/params`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/params`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (response.ok) {
@@ -380,7 +379,7 @@ const TrainingPage: React.FC = () => {
 
   const loadDictionaryStats = async (authToken: string) => {
     try {
-      const response = await fetch(`${API_BASE}/dictionary/stats`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/stats`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (response.ok) {
@@ -394,7 +393,7 @@ const TrainingPage: React.FC = () => {
 
   const loadDictionary = async (type: DictionaryType, authToken: string = token) => {
     try {
-      const response = await fetch(`${API_BASE}/dictionary?type=${type}`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/dictionary?type=${type}`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (response.ok) {
@@ -408,7 +407,7 @@ const TrainingPage: React.FC = () => {
 
   const loadExternalApiConfig = async (authToken: string) => {
     try {
-      const response = await fetch(`${API_BASE}/external-api`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/external-api`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (response.ok) {
@@ -422,7 +421,7 @@ const TrainingPage: React.FC = () => {
 
   const loadUploadedData = async (authToken: string) => {
     try {
-      const response = await fetch(`${API_BASE}/uploaded-data`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/uploaded-data`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (response.ok) {
@@ -436,7 +435,7 @@ const TrainingPage: React.FC = () => {
 
   const loadTrainingStatus = async (authToken: string) => {
     try {
-      const response = await fetch(`${API_BASE}/status`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/status`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (response.ok) {
@@ -451,7 +450,7 @@ const TrainingPage: React.FC = () => {
   const updateParams = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/params`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/params`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -476,7 +475,7 @@ const TrainingPage: React.FC = () => {
     
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/upload-data`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/upload-data`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -533,7 +532,7 @@ const TrainingPage: React.FC = () => {
     
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/start`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/start`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -555,7 +554,7 @@ const TrainingPage: React.FC = () => {
 
   const cancelTraining = async () => {
     try {
-      const response = await fetch(`${API_BASE}/cancel`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/cancel`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -572,7 +571,7 @@ const TrainingPage: React.FC = () => {
     if (!newWord.trim()) return;
     
     try {
-      const response = await fetch(`${API_BASE}/dictionary/add`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -600,7 +599,7 @@ const TrainingPage: React.FC = () => {
     if (!confirm(`确定要删除词汇 "${word}" 吗？`)) return;
     
     try {
-      const response = await fetch(`${API_BASE}/dictionary/remove`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/remove`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -636,7 +635,7 @@ const TrainingPage: React.FC = () => {
   const updateExternalApiConfig = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/external-api`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/external-api`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -659,7 +658,7 @@ const TrainingPage: React.FC = () => {
   const syncDictionary = async () => {
     setSyncing(true);
     try {
-      const response = await fetch(`${API_BASE}/dictionary/reload`, {
+      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/reload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

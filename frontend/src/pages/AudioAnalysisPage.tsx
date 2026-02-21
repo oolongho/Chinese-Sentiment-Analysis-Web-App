@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-
-const API_BASE = 'http://localhost:8000/api';
+import { API_ENDPOINTS } from '../config/api';
 
 const AudioAnalysisPage: React.FC = () => {
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -27,7 +26,7 @@ const AudioAnalysisPage: React.FC = () => {
     try {
       const token = localStorage.getItem('training_token');
       if (token) {
-        const response = await fetch(`${API_BASE}/training/external-api/check`, {
+        const response = await fetch(`${API_ENDPOINTS.training}/external-api/check`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
@@ -71,11 +70,11 @@ const AudioAnalysisPage: React.FC = () => {
       formData.append('file', audioFile);
       
       const [localResponse, externalResponse] = await Promise.all([
-        fetch(`${API_BASE}/audio/analyze`, {
+        fetch(`${API_ENDPOINTS.audio}/analyze`, {
           method: 'POST',
           body: formData
         }),
-        externalApiConfigured ? fetch(`${API_BASE}/audio/analyze/external`, {
+        externalApiConfigured ? fetch(`${API_ENDPOINTS.audio}/analyze/external`, {
           method: 'POST',
           body: formData
         }) : null

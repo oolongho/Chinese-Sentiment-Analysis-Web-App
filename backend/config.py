@@ -29,11 +29,7 @@ TRAINING_PARAMS = {
 
 MODEL_NAME = 'hfl/chinese-roberta-wwm-ext'
 
-CORS_ORIGINS = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-]
+CORS_ORIGINS = ['*']
 
 EXTERNAL_API_CONFIG_FILE = os.path.join(DATA_DIR, 'external_api_config.json')
 
