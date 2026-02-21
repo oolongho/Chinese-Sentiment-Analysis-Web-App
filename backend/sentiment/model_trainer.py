@@ -10,6 +10,8 @@
 """
 
 import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
 import torch
 import pandas as pd
 import numpy as np
@@ -147,7 +149,7 @@ def train_model(
         num_labels=3,
         id2label=ID_TO_LABEL,
         label2id=LABEL_MAP,
-        use_safetensors=True
+        use_safetensors=False
     )
     
     train_df, test_df = load_data()
@@ -205,7 +207,13 @@ def evaluate_model(trainer, test_df: pd.DataFrame, tokenizer):
     print("模型评估")
     print("=" * 60)
     
-    test_texts = test_df['首次评价'].tolist()
+    if '首次评价' in test_df.columns:
+        test_texts = test_df['首次评价'].tolist()
+    elif '评价' in test_df.columns:
+        test_texts = test_df['评价'].tolist()
+    else:
+        print("未找到评价列")
+        return []
     
     test_dataset = SentimentDataset(
         test_texts, 

@@ -13,7 +13,6 @@ from typing import Dict, List, Optional
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'models', 'roberta_finetuned')
-DEFAULT_MODEL_NAME = 'hfl/chinese-roberta-wwm-ext'
 
 ID_TO_LABEL = {0: '负面', 1: '中性', 2: '正面'}
 LABEL_MAP = {'负面': 0, '中性': 1, '正面': 2}
@@ -33,29 +32,20 @@ class ModelAnalyzer:
         if model_path is None:
             model_path = MODEL_DIR
         
+        if not os.path.exists(model_path):
+            print(f"警告: 模型路径不存在 {model_path}")
+            print("请先运行 model_trainer.py 训练模型")
+            return
+        
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"加载模型: {model_path}")
+        print(f"使用设备: {self.device}")
         
-        if os.path.exists(model_path) and os.listdir(model_path):
-            print(f"加载本地微调模型: {model_path}")
-            print(f"使用设备: {self.device}")
-            
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
-        else:
-            print(f"本地模型不存在，加载预训练模型: {DEFAULT_MODEL_NAME}")
-            print(f"使用设备: {self.device}")
-            print("提示: 请运行 model_trainer.py 训练模型以获得更好的效果")
-            
-            self.tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_NAME)
-            self.model = AutoModelForSequenceClassification.from_pretrained(
-                DEFAULT_MODEL_NAME,
-                num_labels=3,
-                id2label=ID_TO_LABEL,
-                label2id=LABEL_MAP
-            )
-        
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
         self.model.to(self.device)
         self.model.eval()
+        
         print("模型加载完成")
     
     def is_loaded(self) -> bool:

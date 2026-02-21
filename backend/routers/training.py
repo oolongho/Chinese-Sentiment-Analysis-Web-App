@@ -16,7 +16,8 @@ from ..config import (
     load_external_api_config, save_external_api_config
 )
 from ..utils import verify_password, create_token, verify_token, save_upload_file, validate_excel_file
-from ..sentiment import get_lexicon_analyzer
+from .text_analysis import reload_lexicon as reload_text_lexicon
+from .audio_analysis import reload_lexicon as reload_audio_lexicon
 
 router = APIRouter(prefix='/api/training', tags=['管理平台'])
 
@@ -251,8 +252,6 @@ async def add_dictionary_word(
         with open(filepath, 'a', encoding='utf-8') as f:
             f.write(f"{request.word},{request.score}\n")
     
-    get_lexicon_analyzer().reload_dictionaries()
-    
     return {'success': True, 'word': request.word, 'score': request.score}
 
 
@@ -287,8 +286,6 @@ async def remove_dictionary_word(
     with open(filepath, 'w', encoding='utf-8') as f:
         f.writelines(lines)
     
-    get_lexicon_analyzer().reload_dictionaries()
-    
     return {'success': True, 'removed': request.word}
 
 
@@ -311,9 +308,12 @@ async def reload_dictionary(authorization: Optional[str] = Header(None)):
     """重新加载词典到内存"""
     check_auth(authorization)
     
-    get_lexicon_analyzer().reload_dictionaries()
-    
-    return {'success': True, 'message': '词典已重新加载'}
+    try:
+        reload_text_lexicon()
+        reload_audio_lexicon()
+        return {'success': True, 'message': '词典已同步到内存'}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'词典同步失败: {str(e)}')
 
 
 @router.get('/external-api')

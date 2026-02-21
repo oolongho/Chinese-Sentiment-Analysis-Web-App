@@ -47,7 +47,7 @@ class LexiconAnalyzer:
                     line = line.strip()
                     if ',' in line:
                         word, score = line.rsplit(',', 1)
-                        self.positive_words[word] = int(score)
+                        self.positive_words[word] = int(float(score))
             print(f"加载正面词典: {len(self.positive_words)} 个词")
         
         if os.path.exists(neg_file):
@@ -56,60 +56,29 @@ class LexiconAnalyzer:
                     line = line.strip()
                     if ',' in line:
                         word, score = line.rsplit(',', 1)
-                        self.negative_words[word] = int(score)
+                        self.negative_words[word] = int(float(score))
             print(f"加载负面词典: {len(self.negative_words)} 个词")
     
-    def reload_dictionaries(self):
-        """重新加载词典（在词典修改后调用）"""
-        self.positive_words = {}
-        self.negative_words = {}
-        self.degree_words = {}
-        self.negation_words = []
-        self.stop_words = []
-        self._load_dictionaries()
-        print("词典已重新加载")
-
     def _load_degree_words(self):
         """加载程度副词词典"""
-        degree_file = os.path.join(DICT_DIR, 'degree_words.txt')
-        
-        if os.path.exists(degree_file):
-            with open(degree_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if ',' in line:
-                        word, score = line.rsplit(',', 1)
-                        try:
-                            self.degree_words[word] = float(score)
-                        except ValueError:
-                            pass
-            print(f"加载程度副词词典: {len(self.degree_words)} 个词")
-        else:
-            self.degree_words = {
-                '极其': 2.0, '最为': 2.0, '最': 2.0,
-                '非常': 1.8, '十分': 1.8, '特别': 1.8, '格外': 1.8,
-                '很': 1.5, '挺': 1.5, '相当': 1.5, '比较': 1.3,
-                '有点': 0.8, '稍微': 0.8, '略微': 0.8, '有些': 0.8,
-                '超级': 2.0, '超': 1.8, '太': 1.8, '真': 1.5,
-                '实在': 1.5, '确实': 1.5, '真的': 1.5,
-            }
-            print(f"加载程度副词词典(默认): {len(self.degree_words)} 个词")
-
+        self.degree_words = {
+            '极其': 2.0, '最为': 2.0, '最': 2.0,
+            '非常': 1.8, '十分': 1.8, '特别': 1.8, '格外': 1.8,
+            '很': 1.5, '挺': 1.5, '相当': 1.5, '比较': 1.3,
+            '有点': 0.8, '稍微': 0.8, '略微': 0.8, '有些': 0.8,
+            '超级': 2.0, '超': 1.8, '太': 1.8, '真': 1.5,
+            '实在': 1.5, '确实': 1.5, '真的': 1.5,
+        }
+        print(f"加载程度副词词典: {len(self.degree_words)} 个词")
+    
     def _load_negation_words(self):
         """加载否定词词典"""
-        negation_file = os.path.join(DICT_DIR, 'negation_words.txt')
-        
-        if os.path.exists(negation_file):
-            with open(negation_file, 'r', encoding='utf-8') as f:
-                self.negation_words = [line.strip() for line in f if line.strip()]
-            print(f"加载否定词词典: {len(self.negation_words)} 个词")
-        else:
-            self.negation_words = [
-                '不', '没', '无', '非', '莫', '勿', '未', '别',
-                '没有', '不是', '不会', '不能', '不要', '不好',
-                '没什么', '不算', '不再', '不曾', '不怎',
-            ]
-            print(f"加载否定词词典(默认): {len(self.negation_words)} 个词")
+        self.negation_words = [
+            '不', '没', '无', '非', '莫', '勿', '未', '别',
+            '没有', '不是', '不会', '不能', '不要', '不好',
+            '没什么', '不算', '不再', '不曾', '不怎',
+        ]
+        print(f"加载否定词词典: {len(self.negation_words)} 个词")
     
     def _load_stop_words(self):
         """加载停用词词典"""
@@ -202,6 +171,16 @@ class LexiconAnalyzer:
             return '负面'
         else:
             return '中性'
+    
+    def reload(self):
+        """重新加载所有词典"""
+        self.positive_words.clear()
+        self.negative_words.clear()
+        self.degree_words.clear()
+        self.negation_words.clear()
+        self.stop_words.clear()
+        self._load_dictionaries()
+        print("词典已重新加载")
     
     def _calculate_confidence(self, score: float, word_scores: List[Dict]) -> float:
         """计算置信度"""
