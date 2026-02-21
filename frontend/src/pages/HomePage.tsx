@@ -131,7 +131,6 @@ const HomePage: React.FC = () => {
           
           <div className="grid md:grid-cols-3 gap-8">
             <div className="relative">
-              <div className="absolute top-12 left-full w-full h-0.5 bg-gradient-to-r from-blue-300 to-transparent hidden md:block"></div>
               <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 text-center">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                   <span className="text-2xl font-bold text-white">1</span>
@@ -144,7 +143,6 @@ const HomePage: React.FC = () => {
             </div>
             
             <div className="relative">
-              <div className="absolute top-12 left-full w-full h-0.5 bg-gradient-to-r from-blue-300 to-transparent hidden md:block"></div>
               <div className="bg-white rounded-2xl p-8 shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 text-center">
                 <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                   <span className="text-2xl font-bold text-white">2</span>

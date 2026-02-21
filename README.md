@@ -56,11 +56,6 @@
 - Jieba 分词
 - Uvicorn
 
-### AI/ML
-- chinese-roberta-wwm-ext 预训练模型
-- 情感词典分析算法
-- CUDA GPU 加速支持
-
 ## 项目结构
 
 ```
@@ -233,6 +228,8 @@ oolongho
 
 ## 致谢
 
+- 毕设导师
+- 女朋友（人工校验标签）
 - [chinese-roberta-wwm-ext](https://github.com/ymcui/Chinese-BERT-wwm) - 预训练模型
 - [Hugging Face Transformers](https://huggingface.co/) - 模型框架
 - [FastAPI](https://fastapi.tiangolo.com/) - 后端框架

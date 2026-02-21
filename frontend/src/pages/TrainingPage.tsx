@@ -107,7 +107,7 @@ const TrainingPage: React.FC = () => {
   });
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResults | null>(null);
   const [evaluationDataInfo, setEvaluationDataInfo] = useState<{ total: number; label_distribution: Record<string, number> } | null>(null);
-  const evaluationPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const evaluationPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const [dictionaryStats, setDictionaryStats] = useState<DictionaryStats>({
     positive_count: 0,
@@ -150,7 +150,7 @@ const TrainingPage: React.FC = () => {
   });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const statusPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const statusPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const savedToken = localStorage.getItem('training_token');
