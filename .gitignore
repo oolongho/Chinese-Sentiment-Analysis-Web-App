@@ -97,3 +97,5 @@ models/
 # Some data
 data/training/
 data/audio/
+data/stats.json
+data/external_api_config.json
