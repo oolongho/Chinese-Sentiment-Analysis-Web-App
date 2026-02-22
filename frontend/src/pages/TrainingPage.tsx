@@ -1033,12 +1033,6 @@ const TrainingPage: React.FC = () => {
                       </thead>
                       <tbody>
                         <tr className="border-b border-gray-100">
-                          <td className="py-2 px-3 font-medium text-gray-900">产品</td>
-                          <td className="py-2 px-3 text-gray-600">产品名称</td>
-                          <td className="py-2 px-3"><span className="text-gray-400">可选</span></td>
-                          <td className="py-2 px-3 text-gray-500">手机</td>
-                        </tr>
-                        <tr className="border-b border-gray-100">
                           <td className="py-2 px-3 font-medium text-gray-900">文本</td>
                           <td className="py-2 px-3 text-gray-600">待分析的文本内容</td>
                           <td className="py-2 px-3"><span className="text-green-600 font-medium">必需</span></td>
