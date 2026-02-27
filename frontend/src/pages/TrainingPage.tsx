@@ -1023,7 +1023,7 @@ const TrainingPage: React.FC = () => {
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="epoch" tick={{ fontSize: 10 }} />
                             <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                            <Tooltip formatter={(value) => value ? [`${value.toFixed(1)}%`, ''] : ['-']} />
+                            <Tooltip formatter={(value) => value != null ? [`${Number(value).toFixed(1)}%`, ''] : ['-']} />
                             <Legend />
                             <Line type="monotone" dataKey="accuracy" stroke="#22c55e" name="准确率" strokeWidth={2} dot={{ r: 3 }} />
                             <Line type="monotone" dataKey="f1" stroke="#a855f7" name="F1值" strokeWidth={2} dot={{ r: 3 }} />
@@ -1692,7 +1692,6 @@ const TrainingPage: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    </div>
                   </div>
                 )}
               </div>
