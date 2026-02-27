@@ -136,100 +136,17 @@ def compute_metrics(pred):
     }
 
 
-def train_model(
-    model_name: str = 'hfl/chinese-roberta-wwm-ext',
-    output_dir: str = None,
-    num_epochs: int = 3,
-    batch_size: int = 16,
-    learning_rate: float = 2e-5,
-    max_length: int = 128
-):
-    """训练模型"""
-    
-    print("=" * 60)
-    print("开始训练深度学习模型")
-    print("=" * 60)
-    
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"\n使用设备: {device}")
-    if device == "cuda":
-        print(f"GPU: {torch.cuda.get_device_name(0)}")
-        print(f"显存: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
-    
-    if output_dir is None:
-        output_dir = os.path.join(MODEL_DIR, 'roberta_finetuned')
-    os.makedirs(output_dir, exist_ok=True)
-    
-    print(f"\n加载预训练模型: {model_name}")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_name,
-        num_labels=3,
-        id2label=ID_TO_LABEL,
-        label2id=LABEL_MAP,
-        use_safetensors=False
-    )
-    
-    train_df, test_df = load_data()
-    train_dataset, val_dataset = prepare_datasets(train_df, tokenizer)
-    
-    training_args = TrainingArguments(
-        output_dir=output_dir,
-        num_train_epochs=num_epochs,
-        per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        learning_rate=learning_rate,
-        weight_decay=0.01,
-        eval_strategy='epoch',
-        save_strategy='epoch',
-        load_best_model_at_end=True,
-        metric_for_best_model='f1',
-        greater_is_better=True,
-        warmup_ratio=0.1,
-        logging_dir=os.path.join(output_dir, 'logs'),
-        logging_steps=50,
-        save_total_limit=2,
-        fp16=device == "cuda",
-        gradient_accumulation_steps=2,
-        report_to='none',
-    )
-    
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)]
-    )
-    
-    print("\n开始训练...")
-    train_result = trainer.train()
-    
-    print("\n保存模型...")
-    trainer.save_model(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    
-    print(f"\n模型已保存至: {output_dir}")
-    
-    metrics = train_result.metrics
-    trainer.log_metrics("train", metrics)
-    trainer.save_metrics("train", metrics)
-    
-    return trainer, tokenizer
-
-
-def train_model_with_callback(
-    data_file: str = None,
+def _train_model_core(
     model_name: str = 'hfl/chinese-roberta-wwm-ext',
     output_dir: str = None,
     num_epochs: int = 3,
     batch_size: int = 16,
     learning_rate: float = 2e-5,
     max_length: int = 128,
+    data_file: str = None,
     progress_callback: Callable = None
-) -> Dict:
-    """带进度回调的训练模型函数，供外部调用"""
+) -> Tuple[Trainer, AutoTokenizer, Dict]:
+    """核心训练函数，封装所有训练逻辑"""
     
     print("=" * 60)
     print("开始训练深度学习模型")
@@ -258,16 +175,22 @@ def train_model_with_callback(
     train_df, test_df = load_data(data_file)
     train_dataset, val_dataset = prepare_datasets(train_df, tokenizer, max_length=max_length)
     
-    progress_handler = ProgressCallback(progress_callback, num_epochs)
+    callbacks = [EarlyStoppingCallback(early_stopping_patience=2)]
     
-    class EpochEndCallback:
-        def __init__(self, handler, total_epochs):
-            self.handler = handler
-            self.total_epochs = total_epochs
+    if progress_callback:
+        progress_handler = ProgressCallback(progress_callback, num_epochs)
         
-        def on_evaluate(self, args, metrics, **kwargs):
-            epoch = int(kwargs.get('epoch', 0)) + 1
-            self.handler.on_epoch_end(epoch, metrics)
+        class EpochEndCallback:
+            def __init__(self, handler, total_epochs):
+                self.handler = handler
+                self.total_epochs = total_epochs
+            
+            def on_evaluate(self, args, metrics, **kwargs):
+                epoch = int(kwargs.get('epoch', 0)) + 1
+                self.handler.on_epoch_end(epoch, metrics)
+        
+        callbacks.append(EpochEndCallback(progress_handler, num_epochs))
+        progress_callback(0, num_epochs, {}, '正在初始化训练...')
     
     training_args = TrainingArguments(
         output_dir=output_dir,
@@ -296,11 +219,8 @@ def train_model_with_callback(
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)]
+        callbacks=callbacks
     )
-    
-    if progress_callback:
-        progress_callback(0, num_epochs, {}, '正在初始化训练...')
     
     print("\n开始训练...")
     train_result = trainer.train()
@@ -318,9 +238,54 @@ def train_model_with_callback(
     if progress_callback:
         progress_callback(num_epochs, num_epochs, metrics, '训练完成')
     
+    return trainer, tokenizer, metrics
+
+
+def train_model(
+    model_name: str = 'hfl/chinese-roberta-wwm-ext',
+    output_dir: str = None,
+    num_epochs: int = 3,
+    batch_size: int = 16,
+    learning_rate: float = 2e-5,
+    max_length: int = 128
+):
+    """训练模型（简化接口）"""
+    trainer, tokenizer, metrics = _train_model_core(
+        model_name=model_name,
+        output_dir=output_dir,
+        num_epochs=num_epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        max_length=max_length
+    )
+    return trainer, tokenizer
+
+
+def train_model_with_callback(
+    data_file: str = None,
+    model_name: str = 'hfl/chinese-roberta-wwm-ext',
+    output_dir: str = None,
+    num_epochs: int = 3,
+    batch_size: int = 16,
+    learning_rate: float = 2e-5,
+    max_length: int = 128,
+    progress_callback: Callable = None
+) -> Dict:
+    """带进度回调的训练模型函数，供外部调用"""
+    trainer, tokenizer, metrics = _train_model_core(
+        model_name=model_name,
+        output_dir=output_dir,
+        num_epochs=num_epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        max_length=max_length,
+        data_file=data_file,
+        progress_callback=progress_callback
+    )
+    
     return {
         'success': True,
-        'model_path': output_dir,
+        'model_path': output_dir or os.path.join(MODEL_DIR, 'roberta_finetuned'),
         'metrics': metrics
     }
 
