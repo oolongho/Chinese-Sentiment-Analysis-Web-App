@@ -8,3 +8,10 @@ export const API_ENDPOINTS = {
   evaluation: `${API_BASE_URL}/api/evaluation`,
   api: `${API_BASE_URL}/api`,
 };
+
+export const EVALUATION_ENDPOINTS = {
+  upload: `${API_BASE_URL}/api/evaluation/upload`,
+  run: `${API_BASE_URL}/api/evaluation/run`,
+  status: `${API_BASE_URL}/api/evaluation/status`,
+  results: `${API_BASE_URL}/api/evaluation/results`,
+};

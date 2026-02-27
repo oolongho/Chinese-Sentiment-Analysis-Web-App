@@ -6,13 +6,15 @@
 1. 在后台线程运行训练任务
 2. 跟踪训练进度
 3. 提供训练状态查询
+4. 记录训练历史数据（Loss、准确率曲线）
 """
 
 import os
 import threading
 import asyncio
+import json
 from datetime import datetime
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 
 TRAINING_STATUS = {
     'status': 'idle',
@@ -25,6 +27,15 @@ TRAINING_STATUS = {
     'end_time': None,
     'data_file': None,
     'error': None
+}
+
+TRAINING_HISTORY = {
+    'epochs': [],
+    'train_loss': [],
+    'eval_loss': [],
+    'accuracy': [],
+    'f1': [],
+    'learning_rate': []
 }
 
 _training_lock = threading.Lock()
@@ -134,7 +145,7 @@ def cancel_training() -> bool:
 
 def reset_training_status():
     """重置训练状态"""
-    global TRAINING_STATUS
+    global TRAINING_STATUS, TRAINING_HISTORY
     with _training_lock:
         TRAINING_STATUS = {
             'status': 'idle',
@@ -148,3 +159,53 @@ def reset_training_status():
             'data_file': None,
             'error': None
         }
+        TRAINING_HISTORY = {
+            'epochs': [],
+            'train_loss': [],
+            'eval_loss': [],
+            'accuracy': [],
+            'f1': [],
+            'learning_rate': []
+        }
+
+
+def add_training_history(epoch: int, train_loss: float = None, eval_loss: float = None, 
+                         accuracy: float = None, f1: float = None, learning_rate: float = None):
+    """添加训练历史记录"""
+    global TRAINING_HISTORY
+    with _training_lock:
+        TRAINING_HISTORY['epochs'].append(epoch)
+        TRAINING_HISTORY['train_loss'].append(train_loss)
+        TRAINING_HISTORY['eval_loss'].append(eval_loss)
+        TRAINING_HISTORY['accuracy'].append(accuracy)
+        TRAINING_HISTORY['f1'].append(f1)
+        TRAINING_HISTORY['learning_rate'].append(learning_rate)
+
+
+def get_training_history() -> Dict[str, List]:
+    """获取训练历史"""
+    with _training_lock:
+        return TRAINING_HISTORY.copy()
+
+
+def training_progress_callback(epoch: int, total_epochs: int, metrics: Dict = None, message: str = ''):
+    """训练进度回调函数"""
+    progress = int((epoch / total_epochs) * 100) if total_epochs > 0 else 0
+    
+    if metrics:
+        add_training_history(
+            epoch=epoch,
+            train_loss=metrics.get('train_loss'),
+            eval_loss=metrics.get('eval_loss'),
+            accuracy=metrics.get('eval_accuracy'),
+            f1=metrics.get('eval_f1'),
+            learning_rate=metrics.get('learning_rate')
+        )
+    
+    update_training_status(
+        current_epoch=epoch,
+        total_epochs=total_epochs,
+        progress=progress,
+        metrics=metrics or {},
+        message=message
+    )

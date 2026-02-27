@@ -19,7 +19,8 @@ from ..utils import verify_password, create_token, verify_token, save_upload_fil
 from .text_analysis import reload_lexicon as reload_text_lexicon
 from .audio_analysis import reload_lexicon as reload_audio_lexicon
 from ..services.training_service import (
-    start_training, get_training_status, cancel_training, reset_training_status
+    start_training, get_training_status, cancel_training, reset_training_status,
+    get_training_history
 )
 
 router = APIRouter(prefix='/api/training', tags=['管理平台'])
@@ -246,6 +247,13 @@ async def get_status(authorization: Optional[str] = Header(None)):
     """获取训练状态"""
     check_auth(authorization)
     return get_training_status()
+
+
+@router.get('/history')
+async def get_history(authorization: Optional[str] = Header(None)):
+    """获取训练历史数据"""
+    check_auth(authorization)
+    return get_training_history()
 
 
 @router.post('/cancel')

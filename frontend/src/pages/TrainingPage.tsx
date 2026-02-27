@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { API_ENDPOINTS } from '../config/api';
 
 interface DictionaryWord {
@@ -39,6 +40,15 @@ interface TrainingStatus {
   metrics: Record<string, number>;
   message: string;
   error?: string;
+}
+
+interface TrainingHistory {
+  epochs: number[];
+  train_loss: (number | null)[];
+  eval_loss: (number | null)[];
+  accuracy: (number | null)[];
+  f1: (number | null)[];
+  learning_rate: (number | null)[];
 }
 
 interface UploadedData {
@@ -108,6 +118,12 @@ const TrainingPage: React.FC = () => {
   const [evaluationDataInfo, setEvaluationDataInfo] = useState<{ total: number; label_distribution: Record<string, number> } | null>(null);
   const evaluationPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
+  const [errorSamples, setErrorSamples] = useState<{
+    model: Array<{ text: string; true_label: string; pred_label: string; confidence?: number }>;
+    lexicon: Array<{ text: string; true_label: string; pred_label: string; score?: number }>;
+  }>({ model: [], lexicon: [] });
+  const [selectedErrorAnalyzer, setSelectedErrorAnalyzer] = useState<'model' | 'lexicon'>('model');
+  
   const [dictionaryStats, setDictionaryStats] = useState<DictionaryStats>({
     positive_count: 0,
     negative_count: 0,
@@ -146,6 +162,14 @@ const TrainingPage: React.FC = () => {
     total_epochs: 0,
     metrics: {},
     message: ''
+  });
+  const [trainingHistory, setTrainingHistory] = useState<TrainingHistory>({
+    epochs: [],
+    train_loss: [],
+    eval_loss: [],
+    accuracy: [],
+    f1: [],
+    learning_rate: []
   });
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -226,10 +250,32 @@ const TrainingPage: React.FC = () => {
             lexicon: data.lexicon,
             external: data.external
           });
+          fetchErrorSamples();
         }
       }
     } catch (error) {
       console.error('获取评估结果失败:', error);
+    }
+  };
+
+  const fetchErrorSamples = async () => {
+    try {
+      const [modelRes, lexiconRes] = await Promise.all([
+        fetch(`${API_ENDPOINTS.evaluation}/error-samples?analyzer=model&limit=10`),
+        fetch(`${API_ENDPOINTS.evaluation}/error-samples?analyzer=lexicon&limit=10`)
+      ]);
+      
+      if (modelRes.ok && lexiconRes.ok) {
+        const modelData = await modelRes.json();
+        const lexiconData = await lexiconRes.json();
+        
+        setErrorSamples({
+          model: modelData.samples || [],
+          lexicon: lexiconData.samples || []
+        });
+      }
+    } catch (error) {
+      console.error('获取错误样本失败:', error);
     }
   };
 
@@ -292,9 +338,26 @@ const TrainingPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         setTrainingStatus(data);
+        if (data.status === 'training') {
+          fetchTrainingHistory();
+        }
       }
     } catch (error) {
       console.error('获取训练状态失败:', error);
+    }
+  };
+
+  const fetchTrainingHistory = async () => {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.training}/history`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTrainingHistory(data);
+      }
+    } catch (error) {
+      console.error('获取训练历史失败:', error);
     }
   };
 
@@ -923,6 +986,54 @@ const TrainingPage: React.FC = () => {
                   </div>
                 )}
 
+                {(trainingStatus.status === 'training' || trainingStatus.status === 'completed') && trainingHistory.epochs.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">训练过程可视化</h4>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-2">Loss 曲线</h5>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart
+                            data={trainingHistory.epochs.map((epoch, i) => ({
+                              epoch: `Epoch ${epoch}`,
+                              train_loss: trainingHistory.train_loss[i],
+                              eval_loss: trainingHistory.eval_loss[i]
+                            }))}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="epoch" tick={{ fontSize: 10 }} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip />
+                            <Legend />
+                            <Line type="monotone" dataKey="train_loss" stroke="#3b82f6" name="训练Loss" strokeWidth={2} dot={{ r: 3 }} />
+                            <Line type="monotone" dataKey="eval_loss" stroke="#ef4444" name="验证Loss" strokeWidth={2} dot={{ r: 3 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700 mb-2">准确率 & F1 曲线</h5>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart
+                            data={trainingHistory.epochs.map((epoch, i) => ({
+                              epoch: `Epoch ${epoch}`,
+                              accuracy: trainingHistory.accuracy[i] ? trainingHistory.accuracy[i] * 100 : null,
+                              f1: trainingHistory.f1[i] ? trainingHistory.f1[i] * 100 : null
+                            }))}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="epoch" tick={{ fontSize: 10 }} />
+                            <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                            <Tooltip formatter={(value) => value ? [`${value.toFixed(1)}%`, ''] : ['-']} />
+                            <Legend />
+                            <Line type="monotone" dataKey="accuracy" stroke="#22c55e" name="准确率" strokeWidth={2} dot={{ r: 3 }} />
+                            <Line type="monotone" dataKey="f1" stroke="#a855f7" name="F1值" strokeWidth={2} dot={{ r: 3 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <h4 className="text-lg font-semibold text-gray-900">训练参数配置</h4>
@@ -1535,6 +1646,52 @@ const TrainingPage: React.FC = () => {
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    {(errorSamples.model.length > 0 || errorSamples.lexicon.length > 0) && (
+                      <div className="mt-6 bg-white rounded-2xl p-6 border border-gray-200">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-4">错误样本分析</h4>
+                        <div className="flex gap-2 mb-4">
+                          <button
+                            onClick={() => setSelectedErrorAnalyzer('model')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              selectedErrorAnalyzer === 'model'
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            深度学习模型 ({errorSamples.model.length})
+                          </button>
+                          <button
+                            onClick={() => setSelectedErrorAnalyzer('lexicon')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              selectedErrorAnalyzer === 'lexicon'
+                                ? 'bg-purple-500 text-white'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            情感词典 ({errorSamples.lexicon.length})
+                          </button>
+                        </div>
+                        <div className="space-y-3 max-h-80 overflow-y-auto">
+                          {errorSamples[selectedErrorAnalyzer].map((sample, index) => (
+                            <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                              <p className="text-gray-800 text-sm mb-2">{sample.text}</p>
+                              <div className="flex items-center gap-4 text-xs">
+                                <span className="text-green-600">实际: {sample.true_label}</span>
+                                <span className="text-red-500">预测: {sample.pred_label}</span>
+                                {'confidence' in sample && sample.confidence !== undefined && (
+                                  <span className="text-gray-400">置信度: {(sample.confidence * 100).toFixed(1)}%</span>
+                                )}
+                                {'score' in sample && sample.score !== undefined && (
+                                  <span className="text-gray-400">得分: {sample.score.toFixed(2)}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     </div>
                   </div>
                 )}

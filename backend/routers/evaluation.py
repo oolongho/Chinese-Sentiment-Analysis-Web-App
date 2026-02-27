@@ -33,7 +33,12 @@ evaluation_status = {
     'total': 0,
     'current_analyzer': '',
     'results': None,
-    'error': None
+    'error': None,
+    'error_samples': {
+        'model': [],
+        'lexicon': [],
+        'external': []
+    }
 }
 
 
@@ -85,6 +90,12 @@ def calculate_metrics(y_true: List[str], y_pred: List[str]) -> Dict:
     weighted_recall = sum(label_metrics[l]['recall'] * label_metrics[l]['support'] for l in labels) / total_support if total_support > 0 else 0
     weighted_f1 = sum(label_metrics[l]['f1'] * label_metrics[l]['support'] for l in labels) / total_support if total_support > 0 else 0
     
+    confusion_matrix = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+    label_to_idx = {'正面': 0, '负面': 1, '中性': 2}
+    for t, p in zip(y_true, y_pred):
+        if t in label_to_idx and p in label_to_idx:
+            confusion_matrix[label_to_idx[t]][label_to_idx[p]] += 1
+    
     return {
         'accuracy': accuracy,
         'precision': weighted_precision,
@@ -95,7 +106,8 @@ def calculate_metrics(y_true: List[str], y_pred: List[str]) -> Dict:
         'macro_f1': macro_f1,
         'total_samples': total,
         'correct_predictions': correct,
-        'label_metrics': label_metrics
+        'label_metrics': label_metrics,
+        'confusion_matrix': confusion_matrix
     }
 
 
@@ -110,6 +122,7 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         evaluation_status['total'] = total
         evaluation_status['running'] = True
         evaluation_status['error'] = None
+        evaluation_status['error_samples'] = {'model': [], 'lexicon': [], 'external': []}
         
         results = {}
         
@@ -119,6 +132,13 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         for i, text in enumerate(texts):
             result = model_analyzer.predict(text)
             model_predictions.append(result['sentiment'])
+            if labels[i] != result['sentiment']:
+                evaluation_status['error_samples']['model'].append({
+                    'text': text,
+                    'true_label': labels[i],
+                    'pred_label': result['sentiment'],
+                    'confidence': result.get('confidence', 0)
+                })
             evaluation_status['progress'] = i + 1
         results['model'] = calculate_metrics(labels, model_predictions)
         
@@ -128,6 +148,13 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         for i, text in enumerate(texts):
             result = lexicon_analyzer.analyze(text)
             lexicon_predictions.append(result['sentiment'])
+            if labels[i] != result['sentiment']:
+                evaluation_status['error_samples']['lexicon'].append({
+                    'text': text,
+                    'true_label': labels[i],
+                    'pred_label': result['sentiment'],
+                    'score': result.get('score', 0)
+                })
             evaluation_status['progress'] = i + 1
         results['lexicon'] = calculate_metrics(labels, lexicon_predictions)
         
@@ -141,6 +168,12 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
                     result = await call_text_api(text)
                     if result.get('success') and result.get('sentiment'):
                         external_predictions.append(result['sentiment'])
+                        if labels[i] != result['sentiment']:
+                            evaluation_status['error_samples']['external'].append({
+                                'text': text,
+                                'true_label': labels[i],
+                                'pred_label': result['sentiment']
+                            })
                     else:
                         external_predictions.append('中性')
                     evaluation_status['progress'] = i + 1
@@ -269,7 +302,8 @@ async def get_evaluation_results():
             'recall': results['model']['recall'],
             'f1_score': results['model']['f1_score'],
             'total_samples': results['model']['total_samples'],
-            'correct_predictions': results['model']['correct_predictions']
+            'correct_predictions': results['model']['correct_predictions'],
+            'confusion_matrix': results['model'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]])
         } if 'model' in results else None,
         'lexicon': {
             'accuracy': results['lexicon']['accuracy'],
@@ -277,7 +311,8 @@ async def get_evaluation_results():
             'recall': results['lexicon']['recall'],
             'f1_score': results['lexicon']['f1_score'],
             'total_samples': results['lexicon']['total_samples'],
-            'correct_predictions': results['lexicon']['correct_predictions']
+            'correct_predictions': results['lexicon']['correct_predictions'],
+            'confusion_matrix': results['lexicon'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]])
         } if 'lexicon' in results else None,
         'external': {
             'accuracy': results['external']['accuracy'],
@@ -285,8 +320,24 @@ async def get_evaluation_results():
             'recall': results['external']['recall'],
             'f1_score': results['external']['f1_score'],
             'total_samples': results['external']['total_samples'],
-            'correct_predictions': results['external']['correct_predictions']
+            'correct_predictions': results['external']['correct_predictions'],
+            'confusion_matrix': results['external'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]])
         } if 'external' in results else None
+    }
+
+
+@router.get('/error-samples')
+async def get_error_samples(analyzer: str = 'model', limit: int = 20):
+    """获取错误分类样本"""
+    if analyzer not in ['model', 'lexicon', 'external']:
+        return {'success': False, 'message': '无效的分析器类型'}
+    
+    samples = evaluation_status['error_samples'].get(analyzer, [])
+    return {
+        'success': True,
+        'analyzer': analyzer,
+        'total_errors': len(samples),
+        'samples': samples[:limit]
     }
 
 

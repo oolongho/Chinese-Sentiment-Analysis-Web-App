@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { API_ENDPOINTS } from '../config/api';
 
 interface TextAnalysisStats {
@@ -346,6 +346,98 @@ const PerformancePage: React.FC = () => {
                 </svg>
                 <p>暂无监控数据，进行文本分析后将显示</p>
               </div>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">方法对比分析</h2>
+          </div>
+          
+          {(modelMetrics.model.accuracy > 0 || modelMetrics.lexicon.accuracy > 0) ? (
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">评估指标对比</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart 
+                    data={[
+                      {
+                        name: '准确率',
+                        '深度学习': Math.round(modelMetrics.model.accuracy * 100),
+                        '情感词典': Math.round(modelMetrics.lexicon.accuracy * 100),
+                      },
+                      {
+                        name: '精确率',
+                        '深度学习': Math.round(modelMetrics.model.precision * 100),
+                        '情感词典': Math.round(modelMetrics.lexicon.precision * 100),
+                      },
+                      {
+                        name: '召回率',
+                        '深度学习': Math.round(modelMetrics.model.recall * 100),
+                        '情感词典': Math.round(modelMetrics.lexicon.recall * 100),
+                      },
+                      {
+                        name: 'F1值',
+                        '深度学习': Math.round(modelMetrics.model.f1_score * 100),
+                        '情感词典': Math.round(modelMetrics.lexicon.f1_score * 100),
+                      },
+                    ]}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 50, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value) => [`${value}%`, '']} />
+                    <Legend />
+                    <Bar dataKey="深度学习" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="情感词典" fill="#a855f7" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              
+              <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">响应时间对比</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart
+                    data={[
+                      {
+                        name: '平均响应时间(ms)',
+                        '深度学习': Math.round(textAnalyses.model.avg_time * 1000),
+                        '情感词典': Math.round(textAnalyses.lexicon.avg_time * 1000),
+                      },
+                      {
+                        name: '分析次数',
+                        '深度学习': textAnalyses.model.count,
+                        '情感词典': textAnalyses.lexicon.count,
+                      },
+                    ]}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="深度学习" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="情感词典" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100 mb-8 text-center">
+              <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <p className="text-gray-500 mb-2">暂无对比数据</p>
+              <p className="text-sm text-gray-400">请在管理平台进行模型评估后查看对比结果</p>
             </div>
           )}
         </div>
