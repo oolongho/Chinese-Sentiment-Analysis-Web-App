@@ -1556,14 +1556,14 @@ const TrainingPage: React.FC = () => {
                           disabled={!evaluationDataInfo}
                           className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-400 hover:from-purple-600 hover:to-pink-500 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          开始评估（本地模型 + 词典）
+                          本地评估（本地模型 + 情感词典）
                         </button>
                         <button
                           onClick={() => startEvaluation(true)}
                           disabled={!evaluationDataInfo}
                           className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          开始评估（包含外部API）
+                          全部评估（包含外部API，会很久哦）
                         </button>
                       </div>
                     )}
