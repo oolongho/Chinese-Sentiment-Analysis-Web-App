@@ -23,9 +23,16 @@ from transformers import (
     AutoModelForSequenceClassification,
     TrainingArguments,
     Trainer,
-    EarlyStoppingCallback
+    EarlyStoppingCallback,
+    TrainerCallback
 )
 from typing import Dict, List, Tuple, Callable, Optional
+
+try:
+    from accelerate import Accelerator
+    Accelerator._reset_state()
+except:
+    pass
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data')
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'models')
@@ -148,6 +155,13 @@ def _train_model_core(
 ) -> Tuple[Trainer, AutoTokenizer, Dict]:
     """核心训练函数，封装所有训练逻辑"""
     
+    try:
+        from accelerate import Accelerator, PartialState
+        PartialState._reset_state()
+        Accelerator._reset_state()
+    except:
+        pass
+    
     print("=" * 60)
     print("开始训练深度学习模型")
     print("=" * 60)
@@ -180,13 +194,13 @@ def _train_model_core(
     if progress_callback:
         progress_handler = ProgressCallback(progress_callback, num_epochs)
         
-        class EpochEndCallback:
+        class EpochEndCallback(TrainerCallback):
             def __init__(self, handler, total_epochs):
                 self.handler = handler
                 self.total_epochs = total_epochs
             
-            def on_evaluate(self, args, metrics, **kwargs):
-                epoch = int(kwargs.get('epoch', 0)) + 1
+            def on_evaluate(self, args, state, control, metrics, **kwargs):
+                epoch = int(state.epoch) if state.epoch else 0
                 self.handler.on_epoch_end(epoch, metrics)
         
         callbacks.append(EpochEndCallback(progress_handler, num_epochs))
