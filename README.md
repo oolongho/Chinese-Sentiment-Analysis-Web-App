@@ -2,10 +2,10 @@
 
 基于深度学习和情感词典的中文情感分析系统，能够对中文短文本进行情感倾向判断，并分析不同方法的性能。支持文本和音频情感分析。
 
-!\[Python]\(https\://img.shields.io/badge/Python-3.10-blue null)
-!\[FastAPI]\(https\://img.shields.io/badge/FastAPI-0.100+-green null)
-!\[React]\(https\://img.shields.io/badge/React-18-blue null)
-!\[PyTorch]\(https\://img.shields.io/badge/PyTorch-2.6-orange null)
+![Python](https://img.shields.io/badge/Python-3.10-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
+![React](https://img.shields.io/badge/React-18-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.6-orange)
 
 ## 功能特性
 
