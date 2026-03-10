@@ -81,9 +81,9 @@ DATABASE_URL = _get_optional_env('DATABASE_URL', 'sqlite:///' + os.path.join(DAT
 
 TRAINING_PARAMS = {
     'epochs': 3,
-    'batch_size': 16,
+    'batch_size': 32,
     'learning_rate': 2e-5,
-    'max_length': 128,
+    'max_length': 64,
     'warmup_ratio': 0.1,
     'weight_decay': 0.01,
 }
@@ -96,7 +96,7 @@ def _get_cors_origins() -> List[str]:
     获取 CORS 允许的来源列表
     
     从环境变量 CORS_ORIGINS 读取，多个域名用逗号分隔
-    生产环境禁止使用 '*'
+    生产环境不建议使用 '*'
     """
     origins_str = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
     origins = [origin.strip() for origin in origins_str.split(',') if origin.strip()]
