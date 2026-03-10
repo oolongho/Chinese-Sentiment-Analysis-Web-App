@@ -31,8 +31,11 @@ from typing import Dict, List, Tuple, Callable, Optional
 try:
     from accelerate import Accelerator
     Accelerator._reset_state()
-except:
+except ImportError:
     pass
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).warning(f"Failed to reset Accelerator state: {e}")
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data')
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'models')
@@ -159,8 +162,11 @@ def _train_model_core(
         from accelerate import Accelerator, PartialState
         PartialState._reset_state()
         Accelerator._reset_state()
-    except:
+    except ImportError:
         pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to reset Accelerator state: {e}")
     
     print("=" * 60)
     print("开始训练深度学习模型")

@@ -10,6 +10,7 @@
 
 import os
 import json
+import logging
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -17,6 +18,8 @@ from typing import Dict, List, Optional
 
 from ..config import DATA_DIR
 from ..services.system_monitor import system_monitor
+
+logger = logging.getLogger('performance')
 
 router = APIRouter(prefix='/api/performance', tags=['性能统计'])
 
@@ -97,8 +100,12 @@ def load_stats() -> Dict:
                     if 'gpu_avg' not in stats:
                         stats['gpu_avg'] = None
             return data
-        except Exception:
-            pass
+        except json.JSONDecodeError as e:
+            logger.warning(f"统计数据文件解析失败: {e}")
+        except IOError as e:
+            logger.warning(f"统计数据文件读取失败: {e}")
+        except Exception as e:
+            logger.error(f"加载统计数据时发生未知错误: {e}")
     
     return _default_stats()
 

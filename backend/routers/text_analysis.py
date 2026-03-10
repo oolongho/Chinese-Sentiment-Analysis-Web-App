@@ -10,21 +10,20 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
-from ..sentiment import LexiconAnalyzer, ModelAnalyzer
+from ..sentiment import get_lexicon_analyzer, get_model_analyzer, reload_lexicon_analyzer
 from ..services import call_text_api
 from ..services.system_monitor import system_monitor
 from ..routers.performance import record_analysis
+from .logger import get_logger
+
+logger = get_logger('text_analysis')
 
 router = APIRouter(prefix='/api/text', tags=['文本分析'])
-
-lexicon_analyzer = LexiconAnalyzer()
-model_analyzer = ModelAnalyzer()
 
 
 def reload_lexicon():
     """重新加载词典分析器的词典"""
-    lexicon_analyzer.reload()
-    return True
+    return reload_lexicon_analyzer()
 
 
 class TextRequest(BaseModel):
@@ -72,17 +71,22 @@ class BatchExternalAnalysisResponse(BaseModel):
 
 
 def _analyze_lexicon_sync(text: str) -> dict:
+    lexicon_analyzer = get_lexicon_analyzer()
     return lexicon_analyzer.analyze(text)
 
 
 def _analyze_model_sync(text: str) -> dict:
+    model_analyzer = get_model_analyzer()
     return model_analyzer.predict(text)
 
 
 @router.post('/analyze', response_model=TextAnalysisResponse)
 async def analyze_text(request: TextRequest):
     if not request.text or len(request.text.strip()) == 0:
+        logger.warning("文本分析请求: 文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
+    
+    logger.info(f"开始文本分析: {request.text[:50]}...")
     
     lexicon_result, lexicon_profiling, lexicon_time = system_monitor.profile_analysis(
         _analyze_lexicon_sync, request.text
@@ -103,6 +107,8 @@ async def analyze_text(request: TextRequest):
         model_profiling.cpu_peak, model_profiling.cpu_avg,
         model_profiling.gpu_peak, model_profiling.gpu_avg
     )
+    
+    logger.info(f"文本分析完成: 词典={lexicon_result['sentiment']}, 模型={model_result['sentiment']}")
     
     return TextAnalysisResponse(
         lexicon_result=AnalysisResult(
@@ -133,7 +139,10 @@ async def analyze_text(request: TextRequest):
 @router.post('/analyze/external', response_model=ExternalAnalysisResult)
 async def analyze_text_external(request: TextRequest):
     if not request.text or len(request.text.strip()) == 0:
+        logger.warning("外部API文本分析请求: 文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
+    
+    logger.info(f"开始外部API文本分析: {request.text[:50]}...")
     
     start_time = time.time()
     
@@ -143,6 +152,9 @@ async def analyze_text_external(request: TextRequest):
     
     if result.get('success') and result.get('sentiment'):
         record_analysis('text', result['sentiment'], processing_time, 'external')
+        logger.info(f"外部API分析完成: {result['sentiment']}")
+    else:
+        logger.warning(f"外部API分析失败: {result.get('error')}")
     
     return ExternalAnalysisResult(
         success=result.get('success', False),
@@ -158,7 +170,10 @@ async def analyze_text_external(request: TextRequest):
 @router.post('/analyze/lexicon')
 async def analyze_lexicon(request: TextRequest):
     if not request.text:
+        logger.warning("词典分析请求: 文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
+    
+    logger.info(f"开始词典分析: {request.text[:50]}...")
     
     result, profiling, processing_time = system_monitor.profile_analysis(
         _analyze_lexicon_sync, request.text
@@ -177,7 +192,10 @@ async def analyze_lexicon(request: TextRequest):
 @router.post('/analyze/model')
 async def analyze_model(request: TextRequest):
     if not request.text:
+        logger.warning("模型分析请求: 文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
+    
+    logger.info(f"开始模型分析: {request.text[:50]}...")
     
     result, profiling, processing_time = system_monitor.profile_analysis(
         _analyze_model_sync, request.text
@@ -196,7 +214,10 @@ async def analyze_model(request: TextRequest):
 @router.post('/analyze/batch', response_model=BatchAnalysisResponse)
 async def analyze_batch(request: BatchTextRequest):
     if not request.texts or len(request.texts) == 0:
+        logger.warning("批量文本分析请求: 文本列表为空")
         raise HTTPException(status_code=400, detail='文本列表不能为空')
+    
+    logger.info(f"开始批量文本分析: {len(request.texts)} 条")
     
     results = []
     for text in request.texts:
@@ -248,13 +269,17 @@ async def analyze_batch(request: BatchTextRequest):
             )
         ))
     
+    logger.info(f"批量文本分析完成: {len(results)} 条")
     return BatchAnalysisResponse(results=results)
 
 
 @router.post('/analyze/external/batch', response_model=BatchExternalAnalysisResponse)
 async def analyze_batch_external(request: BatchTextRequest):
     if not request.texts or len(request.texts) == 0:
+        logger.warning("批量外部API分析请求: 文本列表为空")
         raise HTTPException(status_code=400, detail='文本列表不能为空')
+    
+    logger.info(f"开始批量外部API分析: {len(request.texts)} 条")
     
     results = []
     for text in request.texts:
@@ -280,6 +305,7 @@ async def analyze_batch_external(request: BatchTextRequest):
             error=result.get('error')
         ))
     
+    logger.info(f"批量外部API分析完成: {len(results)} 条")
     return BatchExternalAnalysisResponse(results=results)
 
 
@@ -299,7 +325,10 @@ async def export_results(request: ExportRequest):
     from fastapi.responses import StreamingResponse
     import pandas as pd
     
+    logger.info(f"导出分析结果: {len(request.results)} 条")
+    
     if not request.results:
+        logger.warning("导出请求: 没有可导出的结果")
         raise HTTPException(status_code=400, detail='没有可导出的结果')
     
     rows = []
@@ -322,6 +351,7 @@ async def export_results(request: ExportRequest):
         output = io.StringIO()
         df.to_csv(output, index=False, encoding='utf-8-sig')
         output.seek(0)
+        logger.info("导出CSV格式成功")
         return StreamingResponse(
             io.BytesIO(output.getvalue().encode('utf-8-sig')),
             media_type='text/csv',
@@ -331,6 +361,7 @@ async def export_results(request: ExportRequest):
         output = io.BytesIO()
         df.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
+        logger.info("导出Excel格式成功")
         return StreamingResponse(
             output,
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -344,7 +375,10 @@ async def export_performance(request: PerformanceExportRequest):
     from fastapi.responses import StreamingResponse
     import pandas as pd
     
+    logger.info(f"导出性能数据: {len(request.results)} 条")
+    
     if not request.results:
+        logger.warning("导出请求: 没有可导出的性能数据")
         raise HTTPException(status_code=400, detail='没有可导出的性能数据')
     
     rows = []
@@ -368,6 +402,7 @@ async def export_performance(request: PerformanceExportRequest):
         output = io.StringIO()
         df.to_csv(output, index=False, encoding='utf-8-sig')
         output.seek(0)
+        logger.info("导出性能CSV格式成功")
         return StreamingResponse(
             io.BytesIO(output.getvalue().encode('utf-8-sig')),
             media_type='text/csv',
@@ -377,6 +412,7 @@ async def export_performance(request: PerformanceExportRequest):
         output = io.BytesIO()
         df.to_excel(output, index=False, engine='openpyxl')
         output.seek(0)
+        logger.info("导出性能Excel格式成功")
         return StreamingResponse(
             output,
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

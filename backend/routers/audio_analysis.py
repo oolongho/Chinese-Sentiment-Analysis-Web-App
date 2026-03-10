@@ -11,14 +11,14 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, Dict
 
-from ..sentiment import LexiconAnalyzer, ModelAnalyzer
+from ..sentiment import get_lexicon_analyzer, get_model_analyzer
 from ..config import DATA_DIR
 from ..services import call_audio_api, call_text_api
+from .logger import get_logger
+
+logger = get_logger('audio_analysis')
 
 router = APIRouter(prefix='/api/audio', tags=['音频分析'])
-
-lexicon_analyzer = LexiconAnalyzer()
-model_analyzer = ModelAnalyzer()
 
 UPLOAD_DIR = os.path.join(DATA_DIR, 'audio')
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -26,8 +26,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def reload_lexicon():
     """重新加载词典分析器的词典"""
-    lexicon_analyzer.reload()
-    return True
+    from ..sentiment import reload_lexicon_analyzer
+    return reload_lexicon_analyzer()
 
 
 class AudioAnalysisResponse(BaseModel):
@@ -52,10 +52,12 @@ class ExternalAudioAnalysisResponse(BaseModel):
 async def upload_audio(file: UploadFile = File(...)):
     """上传音频文件"""
     if not file.filename:
+        logger.warning("音频上传请求: 文件名为空")
         raise HTTPException(status_code=400, detail='文件名不能为空')
     
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ['.wav', '.mp3', '.m4a', '.flac', '.ogg']:
+        logger.warning(f"音频上传请求: 不支持的格式 {ext}")
         raise HTTPException(status_code=400, detail='不支持的音频格式')
     
     filename = f"{uuid.uuid4().hex}{ext}"
@@ -64,6 +66,8 @@ async def upload_audio(file: UploadFile = File(...)):
     content = await file.read()
     with open(filepath, 'wb') as f:
         f.write(content)
+    
+    logger.info(f"音频上传成功: {filename}, 大小: {len(content)} bytes")
     
     return {
         'success': True,
@@ -82,10 +86,12 @@ async def analyze_audio(file: UploadFile = File(...)):
     start_time = time.time()
     
     if not file.filename:
+        logger.warning("音频分析请求: 文件名为空")
         raise HTTPException(status_code=400, detail='文件名不能为空')
     
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ['.wav', '.mp3', '.m4a', '.flac', '.ogg']:
+        logger.warning(f"音频分析请求: 不支持的格式 {ext}")
         raise HTTPException(status_code=400, detail='不支持的音频格式')
     
     filename = f"{uuid.uuid4().hex}{ext}"
@@ -95,7 +101,12 @@ async def analyze_audio(file: UploadFile = File(...)):
     with open(filepath, 'wb') as f:
         f.write(content)
     
+    logger.info(f"开始音频分析: {filename}")
+    
     transcription = transcribe_audio(filepath)
+    
+    lexicon_analyzer = get_lexicon_analyzer()
+    model_analyzer = get_model_analyzer()
     
     lexicon_start = time.time()
     lexicon_result = lexicon_analyzer.analyze(transcription)
@@ -106,6 +117,8 @@ async def analyze_audio(file: UploadFile = File(...)):
     model_time = time.time() - model_start
     
     processing_time = time.time() - start_time
+    
+    logger.info(f"音频分析完成: 词典={lexicon_result['sentiment']}, 模型={model_result['sentiment']}")
     
     return AudioAnalysisResponse(
         transcription=transcription,
@@ -137,10 +150,12 @@ async def analyze_audio_external(file: UploadFile = File(...)):
     start_time = time.time()
     
     if not file.filename:
+        logger.warning("外部API音频分析请求: 文件名为空")
         raise HTTPException(status_code=400, detail='文件名不能为空')
     
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ['.wav', '.mp3', '.m4a', '.flac', '.ogg']:
+        logger.warning(f"外部API音频分析请求: 不支持的格式 {ext}")
         raise HTTPException(status_code=400, detail='不支持的音频格式')
     
     filename = f"{uuid.uuid4().hex}{ext}"
@@ -150,10 +165,13 @@ async def analyze_audio_external(file: UploadFile = File(...)):
     with open(filepath, 'wb') as f:
         f.write(content)
     
+    logger.info(f"开始外部API音频分析: {filename}")
+    
     audio_result = await call_audio_api(filepath)
     
     if not audio_result.get('success'):
         processing_time = time.time() - start_time
+        logger.warning(f"外部API音频分析失败: {audio_result.get('error')}")
         return ExternalAudioAnalysisResponse(
             success=False,
             processing_time=round(processing_time, 4),
@@ -168,12 +186,15 @@ async def analyze_audio_external(file: UploadFile = File(...)):
     processing_time = time.time() - start_time
     
     if not text_result.get('success'):
+        logger.warning(f"外部API文本分析失败: {text_result.get('error')}")
         return ExternalAudioAnalysisResponse(
             success=False,
             transcription=transcription,
             processing_time=round(processing_time, 4),
             error=text_result.get('error', '情感分析失败')
         )
+    
+    logger.info(f"外部API音频分析完成: {text_result.get('sentiment')}")
     
     return ExternalAudioAnalysisResponse(
         success=True,
