@@ -8,12 +8,27 @@ import os
 import json
 import hashlib
 from typing import Optional, Dict, List
+from pathlib import Path
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
 MODEL_DIR = os.path.join(BASE_DIR, 'models')
-
 LOG_FILE = os.path.join(DATA_DIR, 'logs', 'app.log')
+
+_env_file = Path(BASE_DIR) / '.env'
+if _env_file.exists():
+    try:
+        with open(_env_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if key and value and key not in os.environ:
+                        os.environ[key] = value
+    except IOError:
+        pass
 
 
 def _get_required_env(key: str) -> str:
