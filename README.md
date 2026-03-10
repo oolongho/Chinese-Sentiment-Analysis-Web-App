@@ -2,40 +2,46 @@
 
 基于深度学习和情感词典的中文情感分析系统，能够对中文短文本进行情感倾向判断，并分析不同方法的性能。支持文本和音频情感分析。
 
-![Python](https://img.shields.io/badge/Python-3.10-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
-![React](https://img.shields.io/badge/React-18-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.6-orange)
+!\[Python]\(https\://img.shields.io/badge/Python-3.10-blue null)
+!\[FastAPI]\(https\://img.shields.io/badge/FastAPI-0.100+-green null)
+!\[React]\(https\://img.shields.io/badge/React-18-blue null)
+!\[PyTorch]\(https\://img.shields.io/badge/PyTorch-2.6-orange null)
 
 ## 功能特性
 
 ### 多通道分析
+
 - **深度学习模型分析** - 基于 chinese-roberta-wwm-ext 预训练模型
 - **情感词典分析** - 基于情感词典和规则的分析方法
 - **外部 API 分析** - 支持 OpenAI、DeepSeek、通义千问等 API
 
 ### 文本分析
+
 - 支持单条和批量文本输入
 - 多通道并行分析，结果对比展示
 - 分析结果导出（Excel 格式）
 - 性能数据导出
 
 ### 音频分析（开发中）
+
 - 音频文件上传（支持 mp3、wav、m4a 等格式）
 - 波形可视化预览
 - 语音转文字 + 情感分析
 
 ### 模型训练
+
 - 自定义训练数据集
 - 训练参数配置（轮次、批次大小、学习率等）
 - 模型自动保存和加载
 
 ### 模型评估
+
 - 上传测试数据集评估模型性能
 - 计算准确率、精确率、召回率、F1分数
 - 多分析器对比评估
 
 ### 管理平台
+
 - 情感词典管理（增删改查、热更新）
 - 外部 API 配置
 - 训练参数配置
@@ -44,12 +50,14 @@
 ## 技术栈
 
 ### 前端
+
 - React 18 + TypeScript
 - Tailwind CSS
 - Vite
 - React Router
 
 ### 后端
+
 - FastAPI
 - PyTorch 2.6.0
 - Transformers (Hugging Face)
@@ -97,6 +105,7 @@
 ## 快速开始
 
 ### 环境要求
+
 - Python 3.10+
 - Node.js 18+
 - CUDA（可选，用于 GPU 加速）
@@ -131,9 +140,9 @@ npm run dev
 
 ### 访问应用
 
-- 前端页面: http://localhost:5173
-- API 文档: http://localhost:8000/docs
-- 管理平台: http://localhost:5173/training
+- 前端页面: <http://localhost:5173>
+- API 文档: <http://localhost:8000/docs>
+- 管理平台: <http://localhost:5173/training>
 
 ## 模型训练
 
@@ -159,10 +168,10 @@ python -m backend.sentiment.model_trainer
 
 Excel 文件（.xlsx）需要包含以下列：
 
-| 列名 | 说明 | 是否必需 | 示例 |
-|------|------|----------|------|
-| `文本` | 待分析的文本内容 | 必需 | "这个产品质量很好" |
-| `标签` | 情感标签 | 必需 | `正面`、`负面`、`中性` |
+| 列名   | 说明       | 是否必需 | 示例             |
+| ---- | -------- | ---- | -------------- |
+| `文本` | 待分析的文本内容 | 必需   | "这个产品质量很好"     |
+| `标签` | 情感标签     | 必需   | `正面`、`负面`、`中性` |
 
 ### 情感词典格式
 
@@ -192,11 +201,12 @@ Excel 文件（.xlsx）需要包含以下列：
 
 在管理平台配置外部 API（如 OpenAI、DeepSeek、通义千问等）：
 
-1. 登录管理平台（默认密码：`123456Aa.`）
+1. 登录管理平台（默认密码：`123456`）
 2. 进入"外部 API"标签
 3. 填写 API Key、Base URL、模型名称
 
 ### 支持的 API 格式
+
 - OpenAI API
 - DeepSeek API
 - 通义千问 API
@@ -205,6 +215,7 @@ Excel 文件（.xlsx）需要包含以下列：
 ## 情感词典管理
 
 在管理平台可以：
+
 - 查看和搜索词典词汇
 - 添加新词汇（支持设置权重）
 - 删除词汇
@@ -229,3 +240,4 @@ oolongho
 - [Hugging Face Transformers](https://huggingface.co/) - 模型框架
 - [FastAPI](https://fastapi.tiangolo.com/) - 后端框架
 - [React](https://react.dev/) - 前端框架
+
