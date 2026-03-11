@@ -124,13 +124,11 @@ def load_external_api_config() -> Dict:
             with open(EXTERNAL_API_CONFIG_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            from utils.logger import get_logger
-            logger = get_logger('config')
-            logger.warning(f"外部API配置文件解析失败: {e}")
+            import logging
+            logging.getLogger('config').warning(f"外部API配置文件解析失败: {e}")
         except IOError as e:
-            from utils.logger import get_logger
-            logger = get_logger('config')
-            logger.warning(f"外部API配置文件读取失败: {e}")
+            import logging
+            logging.getLogger('config').warning(f"外部API配置文件读取失败: {e}")
     return {
         'text_api_key': '',
         'text_base_url': '',
@@ -149,8 +147,8 @@ def save_external_api_config(config: Dict):
 
 def validate_security_config():
     """验证安全配置"""
-    from utils.logger import get_logger
-    logger = get_logger('config')
+    import logging
+    logger = logging.getLogger('config')
     
     issues = []
     

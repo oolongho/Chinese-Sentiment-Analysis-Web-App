@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from config import (
     DATA_DIR, TRAINING_PARAMS, 
-    ADMIN_PASSWORD, SECRET_KEY,
+    ADMIN_PASSWORD_HASH, SECRET_KEY,
     load_external_api_config, save_external_api_config
 )
 from utils import verify_password, create_token, verify_token, save_upload_file, validate_excel_file

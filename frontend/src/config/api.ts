@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://frp-cup.com:62207';
+export const API_BASE_URL = 'http://localhost:8000';
 
 export const API_ENDPOINTS = {
   text: `${API_BASE_URL}/api/text`,
