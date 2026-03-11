@@ -14,7 +14,7 @@ import re
 import jieba
 from typing import Dict, List, Tuple, Set
 from functools import lru_cache
-from .logger import get_logger
+from sentiment.logger import get_logger
 
 DICT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data')
 

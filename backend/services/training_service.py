@@ -82,7 +82,7 @@ def run_training(data_file: str, params: Dict):
             error=None
         )
         
-        from ..sentiment.model_trainer import train_model_with_callback
+        from sentiment.model_trainer import train_model_with_callback
         
         def progress_cb(epoch, total_epochs, metrics=None, msg=''):
             training_progress_callback(epoch, total_epochs, metrics, msg)

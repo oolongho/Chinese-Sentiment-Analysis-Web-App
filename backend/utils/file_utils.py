@@ -10,8 +10,8 @@ import uuid
 import pandas as pd
 from typing import Tuple, Optional, Set
 from fastapi import UploadFile, HTTPException
-from ..config import DATA_DIR
-from .logger import get_logger
+from config import DATA_DIR
+from utils.logger import get_logger
 
 logger = get_logger('file_utils')
 

@@ -7,9 +7,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .config import CORS_ORIGINS, LOG_FILE, validate_security_config
-from .utils.logger import setup_logger, get_logger
-from .routers import (
+from config import CORS_ORIGINS, LOG_FILE, validate_security_config
+from utils.logger import setup_logger, get_logger
+from routers import (
     text_analysis_router,
     audio_analysis_router,
     performance_router,
@@ -84,4 +84,4 @@ async def health_check():
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run('backend.main:app', host='0.0.0.0', port=8000, reload=True)
+    uvicorn.run('main:app', host='0.0.0.0', port=8000, reload=True)

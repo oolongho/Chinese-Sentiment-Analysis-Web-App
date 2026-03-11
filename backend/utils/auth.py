@@ -8,8 +8,9 @@ import hashlib
 import time
 from typing import Dict
 import jwt
-from ..config import ADMIN_PASSWORD_HASH, SECRET_KEY
-from .logger import get_logger
+
+from config import ADMIN_PASSWORD_HASH, SECRET_KEY
+from utils.logger import get_logger
 
 logger = get_logger('auth')
 
@@ -32,6 +33,7 @@ def verify_password(password: str) -> bool:
     if not password:
         logger.warning("密码验证失败: 密码为空")
         return False
+    
     
     password_hash = _hash_password(password)
     result = password_hash == ADMIN_PASSWORD_HASH

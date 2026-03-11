@@ -10,15 +10,15 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Header
 from pydantic import BaseModel
 
-from ..config import (
+from config import (
     DATA_DIR, TRAINING_PARAMS, 
     ADMIN_PASSWORD, SECRET_KEY,
     load_external_api_config, save_external_api_config
 )
-from ..utils import verify_password, create_token, verify_token, save_upload_file, validate_excel_file
-from .text_analysis import reload_lexicon as reload_text_lexicon
-from .audio_analysis import reload_lexicon as reload_audio_lexicon
-from ..services.training_service import (
+from utils import verify_password, create_token, verify_token, save_upload_file, validate_excel_file
+from routers.text_analysis import reload_lexicon as reload_text_lexicon
+from routers.audio_analysis import reload_lexicon as reload_audio_lexicon
+from services.training_service import (
     start_training, get_training_status, cancel_training, reset_training_status,
     get_training_history
 )

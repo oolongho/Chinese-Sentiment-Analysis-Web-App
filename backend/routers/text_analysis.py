@@ -10,11 +10,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
-from ..sentiment import get_lexicon_analyzer, get_model_analyzer, reload_lexicon_analyzer
-from ..services import call_text_api
-from ..services.system_monitor import system_monitor
-from ..routers.performance import record_analysis
-from .logger import get_logger
+from sentiment import get_lexicon_analyzer, get_model_analyzer, reload_lexicon_analyzer
+from services import call_text_api
+from services.system_monitor import system_monitor
+from routers.performance import record_analysis
+from routers.logger import get_logger
 
 logger = get_logger('text_analysis')
 

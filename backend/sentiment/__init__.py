@@ -5,9 +5,9 @@
 """
 
 from typing import Optional
-from .lexicon_analyzer import LexiconAnalyzer
-from .model_analyzer import ModelAnalyzer, get_analyzer as _get_model_analyzer
-from .logger import get_logger
+from sentiment.lexicon_analyzer import LexiconAnalyzer
+from sentiment.model_analyzer import ModelAnalyzer, get_analyzer as _get_model_analyzer
+from sentiment.logger import get_logger
 
 logger = get_logger('sentiment')
 

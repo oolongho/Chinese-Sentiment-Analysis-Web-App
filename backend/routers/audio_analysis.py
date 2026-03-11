@@ -11,10 +11,10 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, Dict
 
-from ..sentiment import get_lexicon_analyzer, get_model_analyzer
-from ..config import DATA_DIR
-from ..services import call_audio_api, call_text_api
-from .logger import get_logger
+from sentiment import get_lexicon_analyzer, get_model_analyzer
+from config import DATA_DIR
+from services import call_audio_api, call_text_api
+from routers.logger import get_logger
 
 logger = get_logger('audio_analysis')
 
@@ -26,7 +26,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def reload_lexicon():
     """重新加载词典分析器的词典"""
-    from ..sentiment import reload_lexicon_analyzer
+    from sentiment import reload_lexicon_analyzer
     return reload_lexicon_analyzer()
 
 

@@ -16,8 +16,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
-from ..config import DATA_DIR
-from ..services.system_monitor import system_monitor
+from config import DATA_DIR
+from services.system_monitor import system_monitor
 
 logger = logging.getLogger('performance')
 

@@ -7,7 +7,7 @@
 import httpx
 import base64
 from typing import Dict, Optional
-from ..config import load_external_api_config
+from config import load_external_api_config
 
 
 async def call_text_api(text: str) -> Dict:

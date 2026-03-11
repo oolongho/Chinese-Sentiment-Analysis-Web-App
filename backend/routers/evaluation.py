@@ -17,10 +17,10 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 from collections import Counter
 
-from ..config import DATA_DIR
-from ..sentiment import LexiconAnalyzer, ModelAnalyzer
-from ..services import call_text_api
-from ..routers.performance import update_model_metrics
+from config import DATA_DIR
+from sentiment import LexiconAnalyzer, ModelAnalyzer
+from services import call_text_api
+from routers.performance import update_model_metrics
 
 router = APIRouter(prefix='/api/evaluation', tags=['模型评估'])
 
