@@ -7,8 +7,11 @@
 import time
 import asyncio
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
+
+MAX_TEXT_LENGTH = 5000
+MAX_BATCH_SIZE = 100
 
 from sentiment import get_lexicon_analyzer, get_model_analyzer, reload_lexicon_analyzer
 from services import call_text_api
@@ -27,11 +30,11 @@ def reload_lexicon():
 
 
 class TextRequest(BaseModel):
-    text: str
+    text: str = Field(..., min_length=1, max_length=MAX_TEXT_LENGTH)
 
 
 class BatchTextRequest(BaseModel):
-    texts: List[str]
+    texts: List[str] = Field(..., min_length=1, max_length=MAX_BATCH_SIZE)
 
 
 class AnalysisResult(BaseModel):
@@ -82,18 +85,19 @@ def _analyze_model_sync(text: str) -> dict:
 
 @router.post('/analyze', response_model=TextAnalysisResponse)
 async def analyze_text(request: TextRequest):
-    if not request.text or len(request.text.strip()) == 0:
+    text = request.text.strip()
+    if not text:
         logger.warning("文本分析请求: 文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
-    
-    logger.info(f"开始文本分析: {request.text[:50]}...")
+
+    logger.info(f"开始文本分析: {text[:50]}...")
     
     lexicon_result, lexicon_profiling, lexicon_time = system_monitor.profile_analysis(
-        _analyze_lexicon_sync, request.text
+        _analyze_lexicon_sync, text
     )
-    
+
     model_result, model_profiling, model_time = system_monitor.profile_analysis(
-        _analyze_model_sync, request.text
+        _analyze_model_sync, text
     )
     
     record_analysis(
@@ -138,15 +142,16 @@ async def analyze_text(request: TextRequest):
 
 @router.post('/analyze/external', response_model=ExternalAnalysisResult)
 async def analyze_text_external(request: TextRequest):
-    if not request.text or len(request.text.strip()) == 0:
+    text = request.text.strip()
+    if not text:
         logger.warning("外部API文本分析请求: 文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
-    
-    logger.info(f"开始外部API文本分析: {request.text[:50]}...")
+
+    logger.info(f"开始外部API文本分析: {text[:50]}...")
     
     start_time = time.time()
     
-    result = await call_text_api(request.text)
+    result = await call_text_api(text)
     
     processing_time = time.time() - start_time
     
@@ -169,14 +174,15 @@ async def analyze_text_external(request: TextRequest):
 
 @router.post('/analyze/lexicon')
 async def analyze_lexicon(request: TextRequest):
-    if not request.text:
+    text = request.text.strip()
+    if not text:
         logger.warning("词典分析请求: 文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
-    
-    logger.info(f"开始词典分析: {request.text[:50]}...")
-    
+
+    logger.info(f"开始词典分析: {text[:50]}...")
+
     result, profiling, processing_time = system_monitor.profile_analysis(
-        _analyze_lexicon_sync, request.text
+        _analyze_lexicon_sync, text
     )
     
     record_analysis(
@@ -191,14 +197,15 @@ async def analyze_lexicon(request: TextRequest):
 
 @router.post('/analyze/model')
 async def analyze_model(request: TextRequest):
-    if not request.text:
+    text = request.text.strip()
+    if not text:
         logger.warning("模型分析请求: 文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
-    
-    logger.info(f"开始模型分析: {request.text[:50]}...")
-    
+
+    logger.info(f"开始模型分析: {text[:50]}...")
+
     result, profiling, processing_time = system_monitor.profile_analysis(
-        _analyze_model_sync, request.text
+        _analyze_model_sync, text
     )
     
     record_analysis(
@@ -213,21 +220,22 @@ async def analyze_model(request: TextRequest):
 
 @router.post('/analyze/batch', response_model=BatchAnalysisResponse)
 async def analyze_batch(request: BatchTextRequest):
-    if not request.texts or len(request.texts) == 0:
+    if not request.texts:
         logger.warning("批量文本分析请求: 文本列表为空")
         raise HTTPException(status_code=400, detail='文本列表不能为空')
-    
+
     logger.info(f"开始批量文本分析: {len(request.texts)} 条")
-    
+
     results = []
     for text in request.texts:
-        if not text or len(text.strip()) == 0:
+        text = text.strip()
+        if not text:
             continue
-        
+
         lexicon_result, lexicon_profiling, lexicon_time = system_monitor.profile_analysis(
             _analyze_lexicon_sync, text
         )
-        
+
         model_result, model_profiling, model_time = system_monitor.profile_analysis(
             _analyze_model_sync, text
         )
@@ -275,19 +283,20 @@ async def analyze_batch(request: BatchTextRequest):
 
 @router.post('/analyze/external/batch', response_model=BatchExternalAnalysisResponse)
 async def analyze_batch_external(request: BatchTextRequest):
-    if not request.texts or len(request.texts) == 0:
+    if not request.texts:
         logger.warning("批量外部API分析请求: 文本列表为空")
         raise HTTPException(status_code=400, detail='文本列表不能为空')
-    
+
     logger.info(f"开始批量外部API分析: {len(request.texts)} 条")
-    
+
     results = []
     for text in request.texts:
-        if not text or len(text.strip()) == 0:
+        text = text.strip()
+        if not text:
             continue
-        
+
         start_time = time.time()
-        
+
         result = await call_text_api(text)
         
         processing_time = time.time() - start_time
