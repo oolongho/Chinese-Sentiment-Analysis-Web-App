@@ -22,6 +22,12 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
+try:
+    from pynvml import nvmlInit, nvmlShutdown, nvmlDeviceGetHandleByIndex, nvmlDeviceGetUtilizationRates
+    PYNVML_AVAILABLE = True
+except ImportError:
+    PYNVML_AVAILABLE = False
+
 
 @dataclass
 class ProfilingResult:
@@ -52,6 +58,16 @@ class SystemMonitor:
         self._history_lock = threading.Lock()
         self._history: deque = deque(maxlen=max_history)
         self._gpu_available = TORCH_AVAILABLE and torch.cuda.is_available()
+        self._pynvml_initialized = False
+        
+        # 尝试初始化pynvml
+        if PYNVML_AVAILABLE and self._gpu_available:
+            try:
+                nvmlInit()
+                self._pynvml_initialized = True
+                self._nvml_handle = nvmlDeviceGetHandleByIndex(0)
+            except Exception:
+                self._pynvml_initialized = False
         
         self._profiling_lock = threading.Lock()
         self._profiling_active = False
@@ -63,7 +79,15 @@ class SystemMonitor:
         cpu_percent = psutil.cpu_percent(interval=0.0)
         gpu_percent = None
         
-        if self._gpu_available:
+        # 优先使用pynvml读取GPU使用率
+        if self._pynvml_initialized:
+            try:
+                util = nvmlDeviceGetUtilizationRates(self._nvml_handle)
+                gpu_percent = util.gpu
+            except Exception:
+                gpu_percent = None
+        # 回退到torch.cuda.utilization()
+        elif self._gpu_available:
             try:
                 gpu_percent = torch.cuda.utilization()
             except Exception:

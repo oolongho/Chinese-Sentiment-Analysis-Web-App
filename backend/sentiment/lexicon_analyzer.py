@@ -112,10 +112,11 @@ class LexiconAnalyzer:
     
     def _load_stop_words(self):
         """加载停用词词典"""
+        # 注意：否定词和程度副词不能放在停用词中，否则会影响情感分析
         self.stop_words = {
             '的', '了', '是', '在', '我', '有', '和', '就',
-            '不', '人', '都', '一', '一个', '上', '也', '很',
-            '到', '说', '要', '去', '你', '会', '着', '没有',
+            '人', '都', '一', '一个', '上', '也',
+            '到', '说', '要', '去', '你', '会', '着',
             '看', '好', '自己', '这', '那', '里', '来', '他',
             '她', '它', '们', '这个', '那个', '什么', '怎么',
         }
@@ -153,6 +154,69 @@ class LexiconAnalyzer:
         # 使用缓存机制
         return self._analyze_cached(text)
     
+    def _check_negation_in_window(self, words: List[str], current_idx: int) -> bool:
+        """
+        检查当前词的前两个词中是否包含否定词
+        支持分词后的词包含否定词的情况（如"价不"包含"不"）
+        
+        Args:
+            words: 分词后的词列表
+            current_idx: 当前词的索引
+            
+        Returns:
+            是否包含否定词
+        """
+        # 检查前两个词
+        for offset in [1, 2]:
+            idx = current_idx - offset
+            if idx < 0:
+                continue
+            
+            prev_word = words[idx]
+            
+            # 直接匹配否定词
+            if prev_word in self.negation_words:
+                return True
+            
+            # 检查是否包含否定词（处理"价不"这种分词情况）
+            for neg_word in self.negation_words:
+                if len(neg_word) >= 2 and neg_word in prev_word:
+                    # 对于多字否定词，检查是否包含在前一个词中
+                    return True
+                elif len(neg_word) == 1 and neg_word in prev_word:
+                    # 对于单字否定词（不、没、无等），检查是否在前一个词中
+                    # 但要避免误判，比如"不错"本身是正面词
+                    if prev_word != '不错' and prev_word != '不是' and prev_word != '没什么':
+                        # 如果前一个词以否定词结尾（如"价不"），认为是否定
+                        if prev_word.endswith(neg_word):
+                            return True
+        
+        return False
+    
+    def _check_degree_in_window(self, words: List[str], current_idx: int) -> float:
+        """
+        检查当前词的前两个词中是否包含程度副词
+        
+        Args:
+            words: 分词后的词列表
+            current_idx: 当前词的索引
+            
+        Returns:
+            程度权重，默认1.0
+        """
+        for offset in [1, 2]:
+            idx = current_idx - offset
+            if idx < 0:
+                continue
+            
+            prev_word = words[idx]
+            
+            # 直接匹配程度副词
+            if prev_word in self.degree_words:
+                return self.degree_words[prev_word]
+        
+        return 1.0
+    
     @lru_cache(maxsize=1000)
     def _analyze_cached(self, text: str) -> Dict:
         """
@@ -175,17 +239,14 @@ class LexiconAnalyzer:
             score = 0
             modifier = 1.0
             
-            if i > 0:
-                prev_word = words[i - 1]
-                if prev_word in self.negation_words:
-                    modifier *= -1
-                elif prev_word in self.degree_words:
-                    modifier *= self.degree_words[prev_word]
+            # 检查否定词（改进后的窗口检测）
+            if self._check_negation_in_window(words, i):
+                modifier *= -1
             
-            if i > 1:
-                prev_prev_word = words[i - 2]
-                if prev_prev_word in self.negation_words:
-                    modifier *= -1
+            # 检查程度副词
+            degree_modifier = self._check_degree_in_window(words, i)
+            if degree_modifier != 1.0:
+                modifier *= degree_modifier
             
             if word in self.positive_words:
                 score = self.positive_words[word] * modifier
