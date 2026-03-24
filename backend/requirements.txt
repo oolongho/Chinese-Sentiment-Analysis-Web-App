@@ -9,3 +9,5 @@ opencc
 python-multipart
 PyJWT
 accelerate
+pynvml
+psutil
