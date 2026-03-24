@@ -102,13 +102,30 @@ class LexiconAnalyzer:
         logger.info(f"使用默认程度副词词典: {len(self.degree_words)} 个词")
     
     def _load_negation_words(self):
-        """加载否定词词典"""
+        """
+        加载否定词词典
+        从文件加载，文件不存在时使用默认词典
+        """
+        negation_file = os.path.join(DICT_DIR, 'negation_words.txt')
+
+        if os.path.exists(negation_file):
+            try:
+                with open(negation_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        word = line.strip()
+                        if word and word not in self.negation_words:
+                            self.negation_words.append(word)
+                logger.info(f"从文件加载否定词词典: {len(self.negation_words)} 个词")
+                return
+            except Exception as e:
+                logger.error(f"加载否定词文件失败: {e}，使用默认词典")
+
         self.negation_words = [
-            '不', '没', '无', '非', '莫', '勿', '未', '别',
+            '不', '没', '无', '非', '莫', '勿', '未', '别', '甭',
             '没有', '不是', '不会', '不能', '不要', '不好',
             '没什么', '不算', '不再', '不曾', '不怎',
         ]
-        logger.info(f"加载否定词词典: {len(self.negation_words)} 个词")
+        logger.info(f"使用默认否定词词典: {len(self.negation_words)} 个词")
     
     def _load_stop_words(self):
         """加载停用词词典"""

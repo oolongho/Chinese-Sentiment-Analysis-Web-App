@@ -55,18 +55,6 @@ def get_training_status() -> Dict[str, Any]:
         return TRAINING_STATUS.copy()
 
 
-def training_progress_callback(epoch: int, total_epochs: int, metrics: Dict = None, message: str = ''):
-    """训练进度回调函数"""
-    progress = int((epoch / total_epochs) * 100) if total_epochs > 0 else 0
-    update_training_status(
-        current_epoch=epoch,
-        total_epochs=total_epochs,
-        progress=progress,
-        metrics=metrics or {},
-        message=message
-    )
-
-
 def run_training(data_file: str, params: Dict):
     """在后台运行训练任务"""
     try:
