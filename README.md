@@ -124,7 +124,9 @@ source venv/bin/activate  # Linux/Mac
 .\venv\Scripts\activate   # Windows
 
 # 安装依赖
+cd backend
 pip install -r requirements.txt
+cd ..
 
 # 启动后端服务
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
