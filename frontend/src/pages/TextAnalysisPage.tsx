@@ -44,6 +44,7 @@ const TextAnalysisPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [error, setError] = useState('');
   const [externalApiConfigured, setExternalApiConfigured] = useState(false);
+  const [textApiEnabled, setTextApiEnabled] = useState(false);
 
   useEffect(() => {
     checkExternalApi();
@@ -59,6 +60,7 @@ const TextAnalysisPage: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           setExternalApiConfigured(data.text_configured);
+          setTextApiEnabled(data.text_enabled || false);
         }
       }
     } catch {
@@ -497,7 +499,7 @@ const TextAnalysisPage: React.FC = () => {
               </p>
             </div>
 
-            <div className={`grid gap-6 ${currentResult.models.external ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            <div className={`grid gap-6 ${textApiEnabled && currentResult.models.external ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
               <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 group">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
@@ -643,7 +645,7 @@ const TextAnalysisPage: React.FC = () => {
                 </div>
               </div>
 
-              {currentResult.models.external && (
+              {textApiEnabled && currentResult.models.external && (
                 <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-all duration-300 group">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">

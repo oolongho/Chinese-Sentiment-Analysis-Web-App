@@ -420,15 +420,30 @@ async def update_external_api_config(
 async def check_external_api_config(authorization: Optional[str] = Header(None)):
     """检查外部API配置状态"""
     check_auth(authorization)
-    
+
     config = load_external_api_config()
-    
-    text_configured = bool(config.get('text_api_key') and config.get('text_base_url') and config.get('text_model'))
-    audio_configured = bool(config.get('audio_api_key') and config.get('audio_base_url') and config.get('audio_model'))
-    
+
+    text_enabled = config.get('text_enabled', False)
+    audio_enabled = config.get('audio_enabled', False)
+
+    text_configured = bool(
+        text_enabled and
+        config.get('text_api_key') and
+        config.get('text_base_url') and
+        config.get('text_model')
+    )
+    audio_configured = bool(
+        audio_enabled and
+        config.get('audio_api_key') and
+        config.get('audio_base_url') and
+        config.get('audio_model')
+    )
+
     return {
         'text_configured': text_configured,
         'audio_configured': audio_configured,
+        'text_enabled': text_enabled,
+        'audio_enabled': audio_enabled,
         'text_model': config.get('text_model', ''),
         'audio_model': config.get('audio_model', '')
     }

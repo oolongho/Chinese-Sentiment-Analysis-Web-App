@@ -24,9 +24,11 @@ interface DictionaryStats {
 }
 
 interface ExternalApiConfig {
+  text_enabled: boolean;
   text_api_key: string;
   text_base_url: string;
   text_model: string;
+  audio_enabled: boolean;
   audio_api_key: string;
   audio_base_url: string;
   audio_model: string;
@@ -144,9 +146,11 @@ const TrainingPage: React.FC = () => {
   const [searchWord, setSearchWord] = useState('');
   
   const [externalApiConfig, setExternalApiConfig] = useState<ExternalApiConfig>({
+    text_enabled: false,
     text_api_key: '',
     text_base_url: '',
     text_model: '',
+    audio_enabled: false,
     audio_api_key: '',
     audio_base_url: '',
     audio_model: ''
@@ -1362,8 +1366,17 @@ const TrainingPage: React.FC = () => {
                         </svg>
                       </div>
                       文本分析API
+                      <button
+                        type="button"
+                        onClick={() => setExternalApiConfig({ ...externalApiConfig, text_enabled: !externalApiConfig.text_enabled })}
+                        className={`ml-auto relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${externalApiConfig.text_enabled ? 'bg-gradient-to-r from-blue-500 to-cyan-400' : 'bg-gray-300'}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${externalApiConfig.text_enabled ? 'translate-x-6' : 'translate-x-1'}`}
+                        />
+                      </button>
                     </h4>
-                    
+
                     <div>
                       <label className="block text-gray-700 font-medium mb-2">API Key</label>
                       <input
@@ -1406,8 +1419,17 @@ const TrainingPage: React.FC = () => {
                         </svg>
                       </div>
                       语音分析API
+                      <button
+                        type="button"
+                        onClick={() => setExternalApiConfig({ ...externalApiConfig, audio_enabled: !externalApiConfig.audio_enabled })}
+                        className={`ml-auto relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${externalApiConfig.audio_enabled ? 'bg-gradient-to-r from-purple-500 to-pink-400' : 'bg-gray-300'}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${externalApiConfig.audio_enabled ? 'translate-x-6' : 'translate-x-1'}`}
+                        />
+                      </button>
                     </h4>
-                    
+
                     <div>
                       <label className="block text-gray-700 font-medium mb-2">API Key</label>
                       <input

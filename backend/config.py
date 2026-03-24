@@ -130,9 +130,11 @@ def load_external_api_config() -> Dict:
             import logging
             logging.getLogger('config').warning(f"外部API配置文件读取失败: {e}")
     return {
+        'text_enabled': False,
         'text_api_key': '',
         'text_base_url': '',
         'text_model': '',
+        'audio_enabled': False,
         'audio_api_key': '',
         'audio_base_url': '',
         'audio_model': '',
@@ -141,8 +143,10 @@ def load_external_api_config() -> Dict:
 
 def save_external_api_config(config: Dict):
     """保存外部API配置"""
+    existing_config = load_external_api_config()
+    merged_config = {**existing_config, **config}
     with open(EXTERNAL_API_CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+        json.dump(merged_config, f, ensure_ascii=False, indent=2)
 
 
 def validate_security_config():
