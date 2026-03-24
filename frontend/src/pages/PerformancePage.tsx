@@ -274,6 +274,14 @@ const PerformancePage: React.FC = () => {
                 </svg>
               </div>
               <h2 className="text-xl font-bold text-gray-900">CPU/GPU 使用率监控</h2>
+              <div className="relative group">
+                <svg className="w-5 h-5 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="absolute right-0 top-8 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                  每个数据点记录的是单次文本分析完成时的系统资源使用率，而非实时连续监控
+                </div>
+              </div>
             </div>
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-2">
