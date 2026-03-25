@@ -23,10 +23,25 @@ except ImportError:
     TORCH_AVAILABLE = False
 
 try:
-    from pynvml import nvmlInit, nvmlShutdown, nvmlDeviceGetHandleByIndex, nvmlDeviceGetUtilizationRates
+    from pynvml import (
+        nvmlInit, nvmlShutdown, nvmlDeviceGetHandleByIndex, 
+        nvmlDeviceGetUtilizationRates, nvmlDeviceGetMemoryInfo,
+        nvmlDeviceGetName
+    )
     PYNVML_AVAILABLE = True
 except ImportError:
     PYNVML_AVAILABLE = False
+
+
+@dataclass
+class GpuMemoryInfo:
+    total_mb: float = 0.0
+    used_mb: float = 0.0
+    free_mb: float = 0.0
+    percent: float = 0.0
+    allocated_mb: float = 0.0
+    reserved_mb: float = 0.0
+    gpu_name: str = ""
 
 
 @dataclass
@@ -123,6 +138,59 @@ class SystemMonitor:
             'gpu_percent': snapshot['gpu_percent'],
             'gpu_available': self._gpu_available
         }
+    
+    def get_gpu_memory_info(self) -> GpuMemoryInfo:
+        if not self._gpu_available:
+            return GpuMemoryInfo()
+        
+        gpu_name = ""
+        total_mb = 0.0
+        used_mb = 0.0
+        free_mb = 0.0
+        percent = 0.0
+        allocated_mb = 0.0
+        reserved_mb = 0.0
+        
+        if self._pynvml_initialized:
+            try:
+                gpu_name = nvmlDeviceGetName(self._nvml_handle)
+                if isinstance(gpu_name, bytes):
+                    gpu_name = gpu_name.decode('utf-8')
+                
+                mem_info = nvmlDeviceGetMemoryInfo(self._nvml_handle)
+                total_mb = mem_info.total / (1024 * 1024)
+                used_mb = mem_info.used / (1024 * 1024)
+                free_mb = mem_info.free / (1024 * 1024)
+                percent = (used_mb / total_mb * 100) if total_mb > 0 else 0.0
+            except Exception:
+                pass
+        
+        if TORCH_AVAILABLE and torch.cuda.is_available():
+            try:
+                if not gpu_name:
+                    props = torch.cuda.get_device_properties(0)
+                    gpu_name = props.name
+                    if not total_mb:
+                        total_mb = props.total_memory / (1024 * 1024)
+                
+                allocated_mb = torch.cuda.memory_allocated(0) / (1024 * 1024)
+                reserved_mb = torch.cuda.memory_reserved(0) / (1024 * 1024)
+                
+                if total_mb > 0 and used_mb == 0:
+                    used_mb = allocated_mb
+                    percent = (used_mb / total_mb * 100) if total_mb > 0 else 0.0
+            except Exception:
+                pass
+        
+        return GpuMemoryInfo(
+            total_mb=round(total_mb, 1),
+            used_mb=round(used_mb, 1),
+            free_mb=round(free_mb, 1),
+            percent=round(percent, 1),
+            allocated_mb=round(allocated_mb, 1),
+            reserved_mb=round(reserved_mb, 1),
+            gpu_name=gpu_name
+        )
     
     def clear_history(self):
         with self._history_lock:

@@ -38,6 +38,10 @@ evaluation_status = {
         'model': [],
         'lexicon': [],
         'external': []
+    },
+    'gpu_memory': {
+        'current_mb': 0,
+        'peak_mb': 0
     }
 }
 
@@ -114,7 +118,14 @@ def calculate_metrics(y_true: List[str], y_pred: List[str]) -> Dict:
 def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
     global evaluation_status
     
+    gpu_memory_peak = 0.0
+    
     try:
+        lexicon_analyzer.reload()
+        
+        from services.system_monitor import system_monitor
+        from services.cache_service import save_evaluation_cache
+        
         texts = [item['文本'] for item in test_data]
         labels = [item['标签'] for item in test_data]
         total = len(texts)
@@ -123,6 +134,7 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         evaluation_status['running'] = True
         evaluation_status['error'] = None
         evaluation_status['error_samples'] = {'model': [], 'lexicon': [], 'external': []}
+        evaluation_status['gpu_memory'] = {'current_mb': 0, 'peak_mb': 0}
         
         results = {}
         
@@ -140,6 +152,13 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
                     'confidence': result.get('confidence', 0)
                 })
             evaluation_status['progress'] = i + 1
+            
+            gpu_info = system_monitor.get_gpu_memory_info()
+            current_mb = gpu_info.allocated_mb
+            if current_mb > gpu_memory_peak:
+                gpu_memory_peak = current_mb
+            evaluation_status['gpu_memory'] = {'current_mb': current_mb, 'peak_mb': gpu_memory_peak}
+            
         results['model'] = calculate_metrics(labels, model_predictions)
         
         evaluation_status['current_analyzer'] = 'lexicon'
@@ -197,6 +216,14 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         evaluation_status['results'] = results
         evaluation_status['running'] = False
         evaluation_status['progress'] = total
+        evaluation_status['gpu_memory'] = {'current_mb': 0, 'peak_mb': gpu_memory_peak}
+        
+        save_evaluation_cache(
+            results=results,
+            error_samples=evaluation_status['error_samples'],
+            gpu_memory_peak_mb=gpu_memory_peak,
+            data_info={'total': total}
+        )
         
     except Exception as e:
         evaluation_status['running'] = False
@@ -283,7 +310,8 @@ async def get_evaluation_status():
         'progress': evaluation_status['progress'],
         'total': evaluation_status['total'],
         'current_analyzer': evaluation_status['current_analyzer'],
-        'error': evaluation_status['error']
+        'error': evaluation_status['error'],
+        'gpu_memory': evaluation_status.get('gpu_memory', {'current_mb': 0, 'peak_mb': 0})
     }
 
 
@@ -350,6 +378,34 @@ async def reset_evaluation():
         'total': 0,
         'current_analyzer': '',
         'results': None,
-        'error': None
+        'error': None,
+        'error_samples': {
+            'model': [],
+            'lexicon': [],
+            'external': []
+        },
+        'gpu_memory': {
+            'current_mb': 0,
+            'peak_mb': 0
+        }
     }
     return {'success': True, 'message': '评估状态已重置'}
+
+
+@router.get('/cached-result')
+async def get_cached_evaluation_result():
+    """获取缓存的评估结果"""
+    from services.cache_service import load_evaluation_cache
+    cached = load_evaluation_cache()
+    return {
+        'success': cached is not None,
+        'cached_result': cached
+    }
+
+
+@router.post('/clear-cache')
+async def clear_evaluation_cache():
+    """清除评估缓存"""
+    from services.cache_service import clear_evaluation_cache
+    clear_evaluation_cache()
+    return {'success': True, 'message': '评估缓存已清除'}

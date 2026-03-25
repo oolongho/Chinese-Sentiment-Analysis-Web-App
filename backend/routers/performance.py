@@ -221,13 +221,38 @@ def update_model_metrics(analyzer_type: str, metrics: Dict):
 async def get_statistics():
     stats = load_stats()
     current_usage = system_monitor.get_current_usage()
+    gpu_memory = system_monitor.get_gpu_memory_info()
     
     return {
         'total_analyses': stats.get('total_analyses', 0),
         'text_analyses': stats.get('text_analyses', {}),
         'sentiment_counts': stats.get('sentiment_counts', {}),
         'model_metrics': stats.get('model_metrics', {}),
-        'current_usage': current_usage
+        'current_usage': current_usage,
+        'gpu_memory': {
+            'total_mb': gpu_memory.total_mb,
+            'used_mb': gpu_memory.used_mb,
+            'free_mb': gpu_memory.free_mb,
+            'percent': gpu_memory.percent,
+            'allocated_mb': gpu_memory.allocated_mb,
+            'reserved_mb': gpu_memory.reserved_mb,
+            'gpu_name': gpu_memory.gpu_name
+        }
+    }
+
+
+@router.get('/gpu-memory')
+async def get_gpu_memory():
+    gpu_memory = system_monitor.get_gpu_memory_info()
+    return {
+        'total_mb': gpu_memory.total_mb,
+        'used_mb': gpu_memory.used_mb,
+        'free_mb': gpu_memory.free_mb,
+        'percent': gpu_memory.percent,
+        'allocated_mb': gpu_memory.allocated_mb,
+        'reserved_mb': gpu_memory.reserved_mb,
+        'gpu_name': gpu_memory.gpu_name,
+        'gpu_available': gpu_memory.total_mb > 0
     }
 
 

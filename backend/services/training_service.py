@@ -26,7 +26,11 @@ TRAINING_STATUS = {
     'start_time': None,
     'end_time': None,
     'data_file': None,
-    'error': None
+    'error': None,
+    'gpu_memory': {
+        'current_mb': 0,
+        'peak_mb': 0
+    }
 }
 
 TRAINING_HISTORY = {
@@ -57,6 +61,8 @@ def get_training_status() -> Dict[str, Any]:
 
 def run_training(data_file: str, params: Dict):
     """在后台运行训练任务"""
+    gpu_memory_peak = 0.0
+    
     try:
         update_training_status(
             status='training',
@@ -67,13 +73,22 @@ def run_training(data_file: str, params: Dict):
             message='正在加载模型...',
             start_time=datetime.now().isoformat(),
             data_file=data_file,
-            error=None
+            error=None,
+            gpu_memory={'current_mb': 0, 'peak_mb': 0}
         )
         
-        from sentiment.model_trainer import train_model_with_callback
+        from services.system_monitor import system_monitor
+        from services.cache_service import save_training_cache
         
         def progress_cb(epoch, total_epochs, metrics=None, msg=''):
-            training_progress_callback(epoch, total_epochs, metrics, msg)
+            nonlocal gpu_memory_peak
+            gpu_info = system_monitor.get_gpu_memory_info()
+            current_mb = gpu_info.allocated_mb
+            if current_mb > gpu_memory_peak:
+                gpu_memory_peak = current_mb
+            training_progress_callback(epoch, total_epochs, metrics, msg, current_mb, gpu_memory_peak)
+        
+        from sentiment.model_trainer import train_model_with_callback
         
         result = train_model_with_callback(
             data_file=data_file,
@@ -89,7 +104,16 @@ def run_training(data_file: str, params: Dict):
             progress=100,
             message='训练完成！模型已保存',
             end_time=datetime.now().isoformat(),
-            metrics=result.get('metrics', {})
+            metrics=result.get('metrics', {}),
+            gpu_memory={'current_mb': 0, 'peak_mb': gpu_memory_peak}
+        )
+        
+        save_training_cache(
+            status='completed',
+            metrics=result.get('metrics', {}),
+            history=get_training_history(),
+            gpu_memory_peak_mb=gpu_memory_peak,
+            params=params
         )
         
     except Exception as e:
@@ -98,6 +122,11 @@ def run_training(data_file: str, params: Dict):
             error=str(e),
             message=f'训练失败: {str(e)}',
             end_time=datetime.now().isoformat()
+        )
+        save_training_cache(
+            status='failed',
+            error=str(e),
+            params=params
         )
 
 
@@ -145,7 +174,11 @@ def reset_training_status():
             'start_time': None,
             'end_time': None,
             'data_file': None,
-            'error': None
+            'error': None,
+            'gpu_memory': {
+                'current_mb': 0,
+                'peak_mb': 0
+            }
         }
         TRAINING_HISTORY = {
             'epochs': [],
@@ -176,7 +209,8 @@ def get_training_history() -> Dict[str, List]:
         return TRAINING_HISTORY.copy()
 
 
-def training_progress_callback(epoch: int, total_epochs: int, metrics: Dict = None, message: str = ''):
+def training_progress_callback(epoch: int, total_epochs: int, metrics: Dict = None, message: str = '', 
+                               gpu_current_mb: float = 0, gpu_peak_mb: float = 0):
     """训练进度回调函数"""
     progress = int((epoch / total_epochs) * 100) if total_epochs > 0 else 0
     
@@ -195,5 +229,6 @@ def training_progress_callback(epoch: int, total_epochs: int, metrics: Dict = No
         total_epochs=total_epochs,
         progress=progress,
         metrics=metrics or {},
-        message=message
+        message=message,
+        gpu_memory={'current_mb': gpu_current_mb, 'peak_mb': gpu_peak_mb}
     )

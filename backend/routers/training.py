@@ -277,6 +277,27 @@ async def reset_status(authorization: Optional[str] = Header(None)):
     return {'success': True, 'message': '训练状态已重置'}
 
 
+@router.get('/cached-result')
+async def get_cached_training_result(authorization: Optional[str] = Header(None)):
+    """获取缓存的训练结果"""
+    check_auth(authorization)
+    from services.cache_service import load_training_cache
+    cached = load_training_cache()
+    return {
+        'success': cached is not None,
+        'cached_result': cached
+    }
+
+
+@router.post('/clear-cache')
+async def clear_training_cache(authorization: Optional[str] = Header(None)):
+    """清除训练缓存"""
+    check_auth(authorization)
+    from services.cache_service import clear_training_cache
+    clear_training_cache()
+    return {'success': True, 'message': '训练缓存已清除'}
+
+
 @router.get('/dictionary')
 async def get_dictionary(
     type: str = 'positive',
