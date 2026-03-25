@@ -42,6 +42,20 @@ interface TrainingStatus {
   metrics: Record<string, number>;
   message: string;
   error?: string;
+  gpu_memory?: {
+    current_mb: number;
+    peak_mb: number;
+  };
+}
+
+interface CachedTrainingResult {
+  status: string;
+  completed_at: string;
+  metrics: Record<string, number>;
+  history: TrainingHistory;
+  gpu_memory_peak_mb: number;
+  params: TrainingParams;
+  error?: string;
 }
 
 interface TrainingHistory {
@@ -67,6 +81,22 @@ interface EvaluationStatus {
   total: number;
   current_analyzer: string;
   error?: string;
+  gpu_memory?: {
+    current_mb: number;
+    peak_mb: number;
+  };
+}
+
+interface CachedEvaluationResult {
+  completed_at: string;
+  results: EvaluationResults;
+  error_samples: {
+    model: Array<{ text: string; true_label: string; pred_label: string; confidence?: number }>;
+    lexicon: Array<{ text: string; true_label: string; pred_label: string; score?: number }>;
+    external: Array<{ text: string; true_label: string; pred_label: string }>;
+  };
+  gpu_memory_peak_mb: number;
+  data_info: { total: number };
 }
 
 interface EvaluationResult {
@@ -178,6 +208,9 @@ const TrainingPage: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const statusPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  const [cachedTrainingResult, setCachedTrainingResult] = useState<CachedTrainingResult | null>(null);
+  const [cachedEvaluationResult, setCachedEvaluationResult] = useState<CachedEvaluationResult | null>(null);
 
   useEffect(() => {
     const savedToken = localStorage.getItem('training_token');
@@ -428,6 +461,50 @@ const TrainingPage: React.FC = () => {
     loadExternalApiConfig(authToken);
     loadUploadedData(authToken);
     loadTrainingStatus(authToken);
+    loadCachedTrainingResult(authToken);
+    loadCachedEvaluationResult();
+  };
+
+  const loadCachedTrainingResult = async (authToken: string) => {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.training}/cached-result`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.cached_result) {
+          setCachedTrainingResult(data.cached_result);
+          if (data.cached_result.history) {
+            setTrainingHistory(data.cached_result.history);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('加载训练缓存失败:', error);
+    }
+  };
+
+  const loadCachedEvaluationResult = async () => {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.evaluation}/cached-result`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.cached_result) {
+          setCachedEvaluationResult(data.cached_result);
+          if (data.cached_result.results) {
+            setEvaluationResults(data.cached_result.results);
+          }
+          if (data.cached_result.error_samples) {
+            setErrorSamples({
+              model: data.cached_result.error_samples.model || [],
+              lexicon: data.cached_result.error_samples.lexicon || []
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('加载评估缓存失败:', error);
+    }
   };
 
   const loadParams = async (authToken: string) => {
@@ -953,6 +1030,20 @@ const TrainingPage: React.FC = () => {
                         <p className="text-gray-600 text-sm">模型正在训练，请耐心等待，训练完成后会自动提示。</p>
                       </div>
                     </div>
+                    {trainingStatus.gpu_memory && (
+                      <div className="mt-4 p-3 bg-white rounded-xl border border-purple-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                          <span className="text-sm font-medium text-gray-700">GPU 显存</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="text-gray-600">当前: <span className="font-semibold text-purple-600">{trainingStatus.gpu_memory.current_mb.toFixed(0)} MB</span></span>
+                          <span className="text-gray-600">峰值: <span className="font-semibold text-purple-600">{trainingStatus.gpu_memory.peak_mb.toFixed(0)} MB</span></span>
+                        </div>
+                      </div>
+                    )}
                     <button
                       onClick={cancelTraining}
                       className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-600 font-medium rounded-xl transition-all duration-300"
@@ -971,6 +1062,79 @@ const TrainingPage: React.FC = () => {
                       <div>
                         <h4 className="text-lg font-semibold text-gray-900">训练完成</h4>
                         <p className="text-gray-600 text-sm">模型已保存并自动加载，可以在分析页面使用新模型了。</p>
+                      </div>
+                    </div>
+                    {trainingStatus.gpu_memory && trainingStatus.gpu_memory.peak_mb > 0 && (
+                      <div className="mt-4 p-3 bg-white rounded-xl border border-green-200">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                          <span className="text-sm text-gray-600">训练显存峰值: <span className="font-semibold text-green-600">{trainingStatus.gpu_memory.peak_mb.toFixed(0)} MB</span></span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {trainingStatus.status === 'idle' && cachedTrainingResult && (
+                  <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <div>
+                          <h4 className="text-lg font-semibold text-gray-900">上次训练结果</h4>
+                          <p className="text-gray-500 text-sm">完成于 {new Date(cachedTrainingResult.completed_at).toLocaleString('zh-CN')}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await fetch(`${API_ENDPOINTS.training}/clear-cache`, {
+                              method: 'POST',
+                              headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            setCachedTrainingResult(null);
+                          } catch (error) {
+                            console.error('清除缓存失败:', error);
+                          }
+                        }}
+                        className="text-sm text-gray-500 hover:text-red-500 transition-colors"
+                      >
+                        清除缓存
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-white rounded-xl p-3 text-center">
+                        <div className="text-xs text-gray-500 mb-1">状态</div>
+                        <div className={`text-sm font-semibold ${cachedTrainingResult.status === 'completed' ? 'text-green-600' : 'text-red-600'}`}>
+                          {cachedTrainingResult.status === 'completed' ? '成功' : '失败'}
+                        </div>
+                      </div>
+                      {cachedTrainingResult.metrics && (
+                        <>
+                          <div className="bg-white rounded-xl p-3 text-center">
+                            <div className="text-xs text-gray-500 mb-1">最终 Loss</div>
+                            <div className="text-sm font-semibold text-blue-600">
+                              {cachedTrainingResult.metrics.train_loss?.toFixed(4) || '-'}
+                            </div>
+                          </div>
+                          <div className="bg-white rounded-xl p-3 text-center">
+                            <div className="text-xs text-gray-500 mb-1">验证准确率</div>
+                            <div className="text-sm font-semibold text-purple-600">
+                              {cachedTrainingResult.metrics.eval_accuracy ? `${(cachedTrainingResult.metrics.eval_accuracy * 100).toFixed(1)}%` : '-'}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      <div className="bg-white rounded-xl p-3 text-center">
+                        <div className="text-xs text-gray-500 mb-1">显存峰值</div>
+                        <div className="text-sm font-semibold text-green-600">
+                          {cachedTrainingResult.gpu_memory_peak_mb ? `${cachedTrainingResult.gpu_memory_peak_mb.toFixed(0)} MB` : '-'}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1569,6 +1733,16 @@ const TrainingPage: React.FC = () => {
                           <p className="text-sm text-gray-600 mt-2">
                             进度: {evaluationStatus.progress} / {evaluationStatus.total}
                           </p>
+                          {evaluationStatus.gpu_memory && (
+                            <div className="mt-3 p-2 bg-white rounded-lg border border-purple-200">
+                              <div className="flex items-center gap-2 text-sm">
+                                <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                </svg>
+                                <span className="text-gray-600">GPU显存: <span className="font-semibold text-purple-600">{evaluationStatus.gpu_memory.current_mb.toFixed(0)} MB</span> (峰值: <span className="font-semibold">{evaluationStatus.gpu_memory.peak_mb.toFixed(0)} MB</span>)</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -1594,7 +1768,39 @@ const TrainingPage: React.FC = () => {
 
                 {evaluationResults && (
                   <div className="bg-white rounded-2xl p-6 border border-gray-200">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4">评估结果</h4>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold text-gray-900">评估结果</h4>
+                      {cachedEvaluationResult && (
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-500">完成于 {new Date(cachedEvaluationResult.completed_at).toLocaleString('zh-CN')}</span>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await fetch(`${API_ENDPOINTS.evaluation}/clear-cache`, { method: 'POST' });
+                                setCachedEvaluationResult(null);
+                              } catch (error) {
+                                console.error('清除缓存失败:', error);
+                              }
+                            }}
+                            className="text-xs text-gray-500 hover:text-red-500 transition-colors"
+                          >
+                            清除缓存
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {cachedEvaluationResult && cachedEvaluationResult.gpu_memory_peak_mb > 0 && (
+                      <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                          <span className="text-sm text-gray-600">评估显存峰值: <span className="font-semibold text-green-600">{cachedEvaluationResult.gpu_memory_peak_mb.toFixed(0)} MB</span></span>
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {evaluationResults.model && (
                         <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-5 border border-blue-100">

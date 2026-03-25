@@ -225,8 +225,13 @@ async def analyze_batch(request: BatchTextRequest):
         raise HTTPException(status_code=400, detail='文本列表不能为空')
 
     logger.info(f"开始批量文本分析: {len(request.texts)} 条")
-
+    
+    from services.cache_service import save_text_analysis_cache
+    from services.system_monitor import system_monitor
+    
     results = []
+    gpu_memory_peak = 0.0
+    
     for text in request.texts:
         text = text.strip()
         if not text:
@@ -239,6 +244,10 @@ async def analyze_batch(request: BatchTextRequest):
         model_result, model_profiling, model_time = system_monitor.profile_analysis(
             _analyze_model_sync, text
         )
+        
+        gpu_info = system_monitor.get_gpu_memory_info()
+        if gpu_info.allocated_mb > gpu_memory_peak:
+            gpu_memory_peak = gpu_info.allocated_mb
         
         record_analysis(
             'text', lexicon_result['sentiment'], lexicon_time, 'lexicon',
@@ -276,6 +285,16 @@ async def analyze_batch(request: BatchTextRequest):
                 gpu_avg=model_profiling.gpu_avg
             )
         ))
+    
+    input_text = '\n'.join([t.strip() for t in request.texts if t.strip()])
+    cache_results = []
+    for i, r in enumerate(results):
+        cache_results.append({
+            'text': [t.strip() for t in request.texts if t.strip()][i] if i < len([t.strip() for t in request.texts if t.strip()]) else '',
+            'model_result': r.model_result.model_dump(),
+            'lexicon_result': r.lexicon_result.model_dump()
+        })
+    save_text_analysis_cache(input_text, cache_results, gpu_memory_peak)
     
     logger.info(f"批量文本分析完成: {len(results)} 条")
     return BatchAnalysisResponse(results=results)
@@ -427,3 +446,22 @@ async def export_performance(request: PerformanceExportRequest):
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             headers={'Content-Disposition': 'attachment; filename=performance_data.xlsx'}
         )
+
+
+@router.get('/cached-result')
+async def get_cached_analysis_result():
+    """获取缓存的文本分析结果"""
+    from services.cache_service import load_text_analysis_cache
+    cached = load_text_analysis_cache()
+    return {
+        'success': cached is not None,
+        'cached_result': cached
+    }
+
+
+@router.post('/clear-cache')
+async def clear_analysis_cache():
+    """清除文本分析缓存"""
+    from services.cache_service import clear_text_analysis_cache
+    clear_text_analysis_cache()
+    return {'success': True, 'message': '文本分析缓存已清除'}

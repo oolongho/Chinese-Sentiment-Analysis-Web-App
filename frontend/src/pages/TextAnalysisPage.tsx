@@ -45,10 +45,76 @@ const TextAnalysisPage: React.FC = () => {
   const [error, setError] = useState('');
   const [externalApiConfigured, setExternalApiConfigured] = useState(false);
   const [textApiEnabled, setTextApiEnabled] = useState(false);
+  const [cachedResult, setCachedResult] = useState<any>(null);
+  const [isFromCache, setIsFromCache] = useState(false);
 
   useEffect(() => {
     checkExternalApi();
+    loadCachedResult();
   }, []);
+
+  const loadCachedResult = async () => {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.text}/cached-result`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.cached_result) {
+          setCachedResult(data.cached_result);
+        }
+      }
+    } catch (error) {
+      console.error('加载缓存失败:', error);
+    }
+  };
+
+  const loadFromCache = () => {
+    if (cachedResult) {
+      setText(cachedResult.input_text || '');
+      if (cachedResult.results && cachedResult.results.length > 0) {
+        const results: AnalysisResult[] = cachedResult.results.map((item: any) => ({
+          text: item.text,
+          models: {
+            deepLearning: {
+              sentiment: item.model_result.sentiment === '正面' ? 'positive' : 
+                         item.model_result.sentiment === '负面' ? 'negative' : 'neutral',
+              confidence: item.model_result.confidence,
+              analysisTime: item.model_result.processing_time,
+              scores: item.model_result.scores,
+              cpuPeak: item.model_result.cpu_peak || 0,
+              cpuAvg: item.model_result.cpu_avg || 0,
+              gpuPeak: item.model_result.gpu_peak,
+              gpuAvg: item.model_result.gpu_avg
+            },
+            lexicon: {
+              sentiment: item.lexicon_result.sentiment === '正面' ? 'positive' : 
+                         item.lexicon_result.sentiment === '负面' ? 'negative' : 'neutral',
+              confidence: item.lexicon_result.confidence,
+              analysisTime: item.lexicon_result.processing_time,
+              score: item.lexicon_result.score,
+              sentimentWords: item.lexicon_result.sentiment_words || [],
+              cpuPeak: item.lexicon_result.cpu_peak || 0,
+              cpuAvg: item.lexicon_result.cpu_avg || 0,
+              gpuPeak: item.lexicon_result.gpu_peak,
+              gpuAvg: item.lexicon_result.gpu_avg
+            },
+            external: null
+          }
+        }));
+        setResultsList(results);
+        setCurrentPage(0);
+        setIsFromCache(true);
+      }
+    }
+  };
+
+  const clearCache = async () => {
+    try {
+      await fetch(`${API_ENDPOINTS.text}/clear-cache`, { method: 'POST' });
+      setCachedResult(null);
+    } catch (error) {
+      console.error('清除缓存失败:', error);
+    }
+  };
 
   const checkExternalApi = async () => {
     try {
@@ -78,6 +144,7 @@ const TextAnalysisPage: React.FC = () => {
     setError('');
     setResultsList([]);
     setCurrentPage(0);
+    setIsFromCache(false);
     
     try {
       const [localResponse, externalResponse] = await Promise.all([
@@ -455,8 +522,60 @@ const TextAnalysisPage: React.FC = () => {
           </div>
         </div>
 
+        {cachedResult && !resultsList.length && (
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-3xl shadow-lg p-6 mb-8 border border-blue-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">上次分析结果</h3>
+                  <p className="text-sm text-gray-500">
+                    完成于 {cachedResult.completed_at ? new Date(cachedResult.completed_at).toLocaleString('zh-CN') : ''} · 
+                    共 {cachedResult.total_count || 0} 条结果
+                    {cachedResult.gpu_memory_peak_mb && ` · 显存峰值: ${cachedResult.gpu_memory_peak_mb.toFixed(0)} MB`}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={loadFromCache}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-medium rounded-xl transition-all duration-300 shadow-md hover:shadow-lg"
+                >
+                  加载结果
+                </button>
+                <button
+                  onClick={clearCache}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium rounded-xl transition-all duration-300"
+                >
+                  清除缓存
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {resultsList.length > 0 && currentResult && (
           <div className="space-y-8 animate-fadeIn">
+            {isFromCache && (
+              <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-blue-700 font-medium">这是上次分析的结果（来自缓存）</span>
+                </div>
+                <button
+                  onClick={clearCache}
+                  className="text-sm text-blue-600 hover:text-red-500 transition-colors"
+                >
+                  清除缓存
+                </button>
+              </div>
+            )}
             {renderPagination()}
 
             <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100">

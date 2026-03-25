@@ -31,6 +31,16 @@ interface CurrentUsage {
   gpu_available: boolean;
 }
 
+interface GpuMemory {
+  total_mb: number;
+  used_mb: number;
+  free_mb: number;
+  percent: number;
+  allocated_mb: number;
+  reserved_mb: number;
+  gpu_name: string;
+}
+
 interface Statistics {
   total_analyses: number;
   text_analyses: {
@@ -45,6 +55,7 @@ interface Statistics {
     external: ModelMetrics;
   };
   current_usage: CurrentUsage;
+  gpu_memory: GpuMemory;
 }
 
 interface CpuGpuDataPoint {
@@ -215,6 +226,7 @@ const PerformancePage: React.FC = () => {
     external: { accuracy: 0, precision: 0, recall: 0, f1_score: 0 } 
   };
   const currentUsage = stats?.current_usage || { cpu_percent: 0, gpu_percent: null, gpu_available: false };
+  const gpuMemory = stats?.gpu_memory || { total_mb: 0, used_mb: 0, free_mb: 0, percent: 0, allocated_mb: 0, reserved_mb: 0, gpu_name: '' };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-orange-50 py-12 px-4">
@@ -357,6 +369,105 @@ const PerformancePage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {gpuMemory.total_mb > 0 && (
+          <div className="bg-white rounded-3xl shadow-lg p-8 mb-8 border border-gray-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">GPU 显存监控</h2>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-400 rounded-xl flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">设备信息</h3>
+                    <p className="text-sm text-gray-500">{gpuMemory.gpu_name}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">总显存</span>
+                    <span className="font-bold text-gray-900">{gpuMemory.total_mb.toLocaleString()} MB</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">已用显存</span>
+                    <span className="font-bold text-green-600">{gpuMemory.used_mb.toLocaleString()} MB</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">空闲显存</span>
+                    <span className="font-bold text-gray-900">{gpuMemory.free_mb.toLocaleString()} MB</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-100">
+                <h3 className="font-semibold text-gray-900 mb-4">显存使用率</h3>
+                
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">系统显存</span>
+                    <span className="text-sm font-semibold text-gray-900">{gpuMemory.percent.toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                    <div 
+                      className="h-4 rounded-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-500"
+                      style={{ width: `${gpuMemory.percent}%` }}
+                    ></div>
+                  </div>
+                </div>
+                
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">PyTorch 分配</span>
+                    <span className="text-sm font-semibold text-gray-900">{gpuMemory.allocated_mb.toLocaleString()} MB</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
+                      style={{ width: `${(gpuMemory.allocated_mb / gpuMemory.total_mb * 100) || 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">PyTorch 预留</span>
+                    <span className="text-sm font-semibold text-gray-900">{gpuMemory.reserved_mb.toLocaleString()} MB</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-400 transition-all duration-500"
+                      style={{ width: `${(gpuMemory.reserved_mb / gpuMemory.total_mb * 100) || 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm text-blue-700">
+                  <p className="font-medium mb-1">显存说明</p>
+                  <p className="text-blue-600">系统显存显示的是 GPU 整体显存使用情况；PyTorch 分配/预留显示的是当前进程使用的显存。推理时显存占用较低，训练时会显著增加。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="flex items-center gap-3 mb-6">

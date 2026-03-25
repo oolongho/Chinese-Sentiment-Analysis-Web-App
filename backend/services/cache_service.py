@@ -5,7 +5,8 @@
 功能：
 1. 训练结果缓存
 2. 评估结果缓存
-3. 持久化存储，页面切换不丢失
+3. 文本分析结果缓存
+4. 持久化存储，页面切换不丢失
 """
 
 import os
@@ -23,6 +24,7 @@ logger = logging.getLogger('cache_service')
 CACHE_DIR = os.path.join(DATA_DIR, 'cache')
 TRAINING_CACHE_FILE = os.path.join(CACHE_DIR, 'training_cache.json')
 EVALUATION_CACHE_FILE = os.path.join(CACHE_DIR, 'evaluation_cache.json')
+TEXT_ANALYSIS_CACHE_FILE = os.path.join(CACHE_DIR, 'text_analysis_cache.json')
 
 _cache_lock = threading.Lock()
 
@@ -120,16 +122,51 @@ def clear_evaluation_cache():
             logger.info("评估缓存已清除")
 
 
+def save_text_analysis_cache(
+    input_text: str,
+    results: list,
+    gpu_memory_peak_mb: Optional[float] = None
+):
+    with _cache_lock:
+        cache_data = {
+            "last_analysis": {
+                "completed_at": datetime.now().isoformat(),
+                "input_text": input_text,
+                "results": results,
+                "total_count": len(results),
+                "gpu_memory_peak_mb": gpu_memory_peak_mb
+            }
+        }
+        _save_cache(TEXT_ANALYSIS_CACHE_FILE, cache_data)
+        logger.info(f"文本分析缓存已保存: {len(results)} 条结果")
+
+
+def load_text_analysis_cache() -> Optional[Dict]:
+    with _cache_lock:
+        cache = _load_cache(TEXT_ANALYSIS_CACHE_FILE)
+        return cache.get('last_analysis')
+
+
+def clear_text_analysis_cache():
+    with _cache_lock:
+        if os.path.exists(TEXT_ANALYSIS_CACHE_FILE):
+            os.remove(TEXT_ANALYSIS_CACHE_FILE)
+            logger.info("文本分析缓存已清除")
+
+
 def get_all_cache_status() -> Dict:
     return {
         "training_cache_exists": os.path.exists(TRAINING_CACHE_FILE),
         "evaluation_cache_exists": os.path.exists(EVALUATION_CACHE_FILE),
+        "text_analysis_cache_exists": os.path.exists(TEXT_ANALYSIS_CACHE_FILE),
         "training_cache": load_training_cache(),
-        "evaluation_cache": load_evaluation_cache()
+        "evaluation_cache": load_evaluation_cache(),
+        "text_analysis_cache": load_text_analysis_cache()
     }
 
 
 def clear_all_cache():
     clear_training_cache()
     clear_evaluation_cache()
+    clear_text_analysis_cache()
     logger.info("所有缓存已清除")

@@ -1,0 +1,806 @@
+{
+  "last_analysis": {
+    "completed_at": "2026-03-25T13:11:12.295506",
+    "input_text": "做工精致，材质优良，用着很放心。\n经常出故障，售后推诿责任，差评。\n质量一般，对得起价格，凑合用吧。\n外机噪音太大，邻居都来投诉了，后悔买了这个牌子。\n尺寸不对，退货还要自己承担运费，不合理。\n光线柔和不刺眼，多档亮度可调，学习工作都很适合。\n安装简单，使用方便，整体体验很好。\n使用效果一般，符合这个价位的水准。\n与描述不符，虚假宣传，再也不会买了。\n使用效果明显，超出预期，会再回购。\n安装简单，使用方便，整体体验很好。\n外观普通，实用性还可以，不吹不黑。\n收到的商品有破损，客服态度差，很失望。\n正常使用没问题，就是充电速度比宣传慢一些。\n用后感觉就那样，不会特别推荐但也能接受。\n经常出故障，售后推诿责任，差评。\n说不上好也说不上坏，标准工业品水平。\n质量太差，用了几天就坏了，要求退货。\n使用效果一般，符合这个价位的水准。",
+    "results": [
+      {
+        "text": "做工精致，材质优良，用着很放心。",
+        "model_result": {
+          "sentiment": "正面",
+          "score": 0.9993,
+          "confidence": 0.9993,
+          "processing_time": 0.2793,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.9993,
+            "中性": 0.0005,
+            "负面": 0.0002
+          },
+          "cpu_peak": 56.0,
+          "cpu_avg": 28.58888888888889,
+          "gpu_peak": 96.0,
+          "gpu_avg": 47.0
+        },
+        "lexicon_result": {
+          "sentiment": "正面",
+          "score": 8.0,
+          "confidence": 0.7163,
+          "processing_time": 0.027,
+          "sentiment_words": [
+            {
+              "word": "精致",
+              "base_score": 3,
+              "modifier": 1.0,
+              "final_score": 3.0
+            },
+            {
+              "word": "优良",
+              "base_score": 2,
+              "modifier": 1.0,
+              "final_score": 2.0
+            },
+            {
+              "word": "放心",
+              "base_score": 2,
+              "modifier": 1.5,
+              "final_score": 3.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "经常出故障，售后推诿责任，差评。",
+        "model_result": {
+          "sentiment": "负面",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0311,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.0001,
+            "负面": 0.9998
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 96.0,
+          "gpu_avg": 96.0
+        },
+        "lexicon_result": {
+          "sentiment": "负面",
+          "score": -7.0,
+          "confidence": 0.6979,
+          "processing_time": 0.0248,
+          "sentiment_words": [
+            {
+              "word": "故障",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "推诿",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "差评",
+              "base_score": -3,
+              "modifier": 1.0,
+              "final_score": -3.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "质量一般，对得起价格，凑合用吧。",
+        "model_result": {
+          "sentiment": "中性",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0624,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.9998,
+            "负面": 0.0001
+          },
+          "cpu_peak": 100.0,
+          "cpu_avg": 50.0,
+          "gpu_peak": 96.0,
+          "gpu_avg": 96.0
+        },
+        "lexicon_result": {
+          "sentiment": "中性",
+          "score": 0.0,
+          "confidence": 0.3,
+          "processing_time": 0.0308,
+          "sentiment_words": [],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "外机噪音太大，邻居都来投诉了，后悔买了这个牌子。",
+        "model_result": {
+          "sentiment": "负面",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.031,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.0001,
+            "负面": 0.9998
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 96.0,
+          "gpu_avg": 96.0
+        },
+        "lexicon_result": {
+          "sentiment": "负面",
+          "score": -7.0,
+          "confidence": 0.6923,
+          "processing_time": 0.0243,
+          "sentiment_words": [
+            {
+              "word": "噪音",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "投诉",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "后悔买",
+              "base_score": -3,
+              "modifier": 1.0,
+              "final_score": -3.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "尺寸不对，退货还要自己承担运费，不合理。",
+        "model_result": {
+          "sentiment": "负面",
+          "score": 0.9995,
+          "confidence": 0.9995,
+          "processing_time": 0.0309,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0002,
+            "中性": 0.0002,
+            "负面": 0.9995
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 96.0,
+          "gpu_avg": 96.0
+        },
+        "lexicon_result": {
+          "sentiment": "负面",
+          "score": -3.0,
+          "confidence": 0.6312,
+          "processing_time": 0.031,
+          "sentiment_words": [
+            {
+              "word": "不对",
+              "base_score": -1,
+              "modifier": 1.0,
+              "final_score": -1.0
+            },
+            {
+              "word": "退货",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "光线柔和不刺眼，多档亮度可调，学习工作都很适合。",
+        "model_result": {
+          "sentiment": "正面",
+          "score": 0.9928,
+          "confidence": 0.9928,
+          "processing_time": 0.031,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.9928,
+            "中性": 0.0032,
+            "负面": 0.004
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 96.0,
+          "gpu_avg": 96.0
+        },
+        "lexicon_result": {
+          "sentiment": "正面",
+          "score": 4.0,
+          "confidence": 0.647,
+          "processing_time": 0.0277,
+          "sentiment_words": [
+            {
+              "word": "柔和",
+              "base_score": 2,
+              "modifier": 1.0,
+              "final_score": 2.0
+            },
+            {
+              "word": "刺眼",
+              "base_score": -2,
+              "modifier": -1.0,
+              "final_score": 2.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "安装简单，使用方便，整体体验很好。",
+        "model_result": {
+          "sentiment": "正面",
+          "score": 0.9989,
+          "confidence": 0.9989,
+          "processing_time": 0.0313,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.9989,
+            "中性": 0.0007,
+            "负面": 0.0004
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 13.0,
+          "gpu_avg": 13.0
+        },
+        "lexicon_result": {
+          "sentiment": "正面",
+          "score": 3.0,
+          "confidence": 0.6985,
+          "processing_time": 0.0277,
+          "sentiment_words": [
+            {
+              "word": "很好",
+              "base_score": 3,
+              "modifier": 1.0,
+              "final_score": 3.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "使用效果一般，符合这个价位的水准。",
+        "model_result": {
+          "sentiment": "中性",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0309,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.9998,
+            "负面": 0.0001
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 13.0,
+          "gpu_avg": 13.0
+        },
+        "lexicon_result": {
+          "sentiment": "中性",
+          "score": 0.0,
+          "confidence": 0.3,
+          "processing_time": 0.0277,
+          "sentiment_words": [],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "与描述不符，虚假宣传，再也不会买了。",
+        "model_result": {
+          "sentiment": "负面",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0309,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.0001,
+            "负面": 0.9998
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 13.0,
+          "gpu_avg": 13.0
+        },
+        "lexicon_result": {
+          "sentiment": "中性",
+          "score": -1.0,
+          "confidence": 0.5829,
+          "processing_time": 0.0301,
+          "sentiment_words": [
+            {
+              "word": "不符",
+              "base_score": -1,
+              "modifier": 1.0,
+              "final_score": -1.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "使用效果明显，超出预期，会再回购。",
+        "model_result": {
+          "sentiment": "正面",
+          "score": 0.9992,
+          "confidence": 0.9992,
+          "processing_time": 0.0316,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.9992,
+            "中性": 0.0007,
+            "负面": 0.0002
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 13.0,
+          "gpu_avg": 13.0
+        },
+        "lexicon_result": {
+          "sentiment": "正面",
+          "score": 2.0,
+          "confidence": 0.6381,
+          "processing_time": 0.0308,
+          "sentiment_words": [
+            {
+              "word": "回购",
+              "base_score": 2,
+              "modifier": 1.0,
+              "final_score": 2.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "安装简单，使用方便，整体体验很好。",
+        "model_result": {
+          "sentiment": "正面",
+          "score": 0.9989,
+          "confidence": 0.9989,
+          "processing_time": 0.0306,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.9989,
+            "中性": 0.0007,
+            "负面": 0.0004
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 13.0,
+          "gpu_avg": 13.0
+        },
+        "lexicon_result": {
+          "sentiment": "正面",
+          "score": 3.0,
+          "confidence": 0.6985,
+          "processing_time": 0.0304,
+          "sentiment_words": [
+            {
+              "word": "很好",
+              "base_score": 3,
+              "modifier": 1.0,
+              "final_score": 3.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "外观普通，实用性还可以，不吹不黑。",
+        "model_result": {
+          "sentiment": "中性",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0306,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.9998,
+            "负面": 0.0001
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 13.0,
+          "gpu_avg": 13.0
+        },
+        "lexicon_result": {
+          "sentiment": "中性",
+          "score": 0.0,
+          "confidence": 0.3,
+          "processing_time": 0.0293,
+          "sentiment_words": [],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "收到的商品有破损，客服态度差，很失望。",
+        "model_result": {
+          "sentiment": "负面",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.031,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.0001,
+            "负面": 0.9998
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 7.0,
+          "gpu_avg": 7.0
+        },
+        "lexicon_result": {
+          "sentiment": "负面",
+          "score": -6.0,
+          "confidence": 0.6864,
+          "processing_time": 0.0324,
+          "sentiment_words": [
+            {
+              "word": "破损",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "态度差",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "很失望",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "正常使用没问题，就是充电速度比宣传慢一些。",
+        "model_result": {
+          "sentiment": "中性",
+          "score": 0.593,
+          "confidence": 0.593,
+          "processing_time": 0.0315,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0172,
+            "中性": 0.593,
+            "负面": 0.3897
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 7.0,
+          "gpu_avg": 7.0
+        },
+        "lexicon_result": {
+          "sentiment": "中性",
+          "score": 0.0,
+          "confidence": 0.387,
+          "processing_time": 0.0321,
+          "sentiment_words": [
+            {
+              "word": "问题",
+              "base_score": -1,
+              "modifier": -1.0,
+              "final_score": 1.0
+            },
+            {
+              "word": "慢",
+              "base_score": -1,
+              "modifier": 1.0,
+              "final_score": -1.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "用后感觉就那样，不会特别推荐但也能接受。",
+        "model_result": {
+          "sentiment": "中性",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0299,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.9998,
+            "负面": 0.0001
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 7.0,
+          "gpu_avg": 7.0
+        },
+        "lexicon_result": {
+          "sentiment": "正面",
+          "score": 5.6,
+          "confidence": 0.6992,
+          "processing_time": 0.027,
+          "sentiment_words": [
+            {
+              "word": "推荐",
+              "base_score": 2,
+              "modifier": 1.8,
+              "final_score": 3.6
+            },
+            {
+              "word": "接受",
+              "base_score": 2,
+              "modifier": 1.0,
+              "final_score": 2.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "经常出故障，售后推诿责任，差评。",
+        "model_result": {
+          "sentiment": "负面",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0309,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.0001,
+            "负面": 0.9998
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 7.0,
+          "gpu_avg": 7.0
+        },
+        "lexicon_result": {
+          "sentiment": "负面",
+          "score": -7.0,
+          "confidence": 0.6979,
+          "processing_time": 0.0244,
+          "sentiment_words": [
+            {
+              "word": "故障",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "推诿",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "差评",
+              "base_score": -3,
+              "modifier": 1.0,
+              "final_score": -3.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "说不上好也说不上坏，标准工业品水平。",
+        "model_result": {
+          "sentiment": "中性",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.031,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.9998,
+            "负面": 0.0001
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 7.0,
+          "gpu_avg": 7.0
+        },
+        "lexicon_result": {
+          "sentiment": "负面",
+          "score": -1.0,
+          "confidence": 0.484,
+          "processing_time": 0.0293,
+          "sentiment_words": [
+            {
+              "word": "好",
+              "base_score": 2,
+              "modifier": 1.0,
+              "final_score": 2.0
+            },
+            {
+              "word": "坏",
+              "base_score": -2,
+              "modifier": 1.5,
+              "final_score": -3.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "质量太差，用了几天就坏了，要求退货。",
+        "model_result": {
+          "sentiment": "负面",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0318,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.0001,
+            "负面": 0.9998
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 7.0,
+          "gpu_avg": 7.0
+        },
+        "lexicon_result": {
+          "sentiment": "负面",
+          "score": -7.0,
+          "confidence": 0.7048,
+          "processing_time": 0.0292,
+          "sentiment_words": [
+            {
+              "word": "质量太差",
+              "base_score": -3,
+              "modifier": 1.0,
+              "final_score": -3.0
+            },
+            {
+              "word": "坏了",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "退货",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            }
+          ],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      },
+      {
+        "text": "使用效果一般，符合这个价位的水准。",
+        "model_result": {
+          "sentiment": "中性",
+          "score": 0.9998,
+          "confidence": 0.9998,
+          "processing_time": 0.0318,
+          "sentiment_words": null,
+          "scores": {
+            "正面": 0.0001,
+            "中性": 0.9998,
+            "负面": 0.0001
+          },
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 7.0,
+          "gpu_avg": 7.0
+        },
+        "lexicon_result": {
+          "sentiment": "中性",
+          "score": 0.0,
+          "confidence": 0.3,
+          "processing_time": 0.0292,
+          "sentiment_words": [],
+          "scores": null,
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": null,
+          "gpu_avg": null
+        }
+      }
+    ],
+    "total_count": 19,
+    "gpu_memory_peak_mb": 789.6
+  }
+}
