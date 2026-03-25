@@ -129,13 +129,13 @@ class LexiconAnalyzer:
     
     def _load_stop_words(self):
         """加载停用词词典"""
-        # 注意：否定词和程度副词不能放在停用词中，否则会影响情感分析
+        # 注意：否定词、程度副词、情感词不能放在停用词中，否则会影响情感分析
         self.stop_words = {
             '的', '了', '是', '在', '我', '有', '和', '就',
             '人', '都', '一', '一个', '上', '也',
             '到', '说', '要', '去', '你', '会', '着',
-            '看', '好', '自己', '这', '那', '里', '来', '他',
-            '她', '它', '们', '这个', '那个', '什么', '怎么',
+            '看', '自己', '这', '那', '里', '来', '他',
+            '她', '它', '们', '这个', '那个', '什么',
         }
     
     def _add_custom_words(self):
@@ -171,105 +171,168 @@ class LexiconAnalyzer:
         # 使用缓存机制
         return self._analyze_cached(text)
     
-    def _check_negation_in_window(self, words: List[str], current_idx: int) -> bool:
+    def _count_negations_in_window(self, words: List[str], current_idx: int) -> int:
         """
-        检查当前词的前两个词中是否包含否定词
-        支持分词后的词包含否定词的情况（如"价不"包含"不"）
-        
+        统计当前词前3个词中的否定词数量
+        支持双重否定处理（偶数个否定词相互抵消）
+
         Args:
             words: 分词后的词列表
             current_idx: 当前词的索引
-            
+
         Returns:
-            是否包含否定词
+            否定词数量
         """
-        # 检查前两个词
-        for offset in [1, 2]:
+        negation_count = 0
+
+        for offset in [1, 2, 3]:
             idx = current_idx - offset
             if idx < 0:
                 continue
-            
+
             prev_word = words[idx]
-            
-            # 直接匹配否定词
+
             if prev_word in self.negation_words:
-                return True
-            
-            # 检查是否包含否定词（处理"价不"这种分词情况）
+                negation_count += 1
+                continue
+
             for neg_word in self.negation_words:
-                if len(neg_word) >= 2 and neg_word in prev_word:
-                    # 对于多字否定词，检查是否包含在前一个词中
-                    return True
-                elif len(neg_word) == 1 and neg_word in prev_word:
-                    # 对于单字否定词（不、没、无等），检查是否在前一个词中
-                    # 但要避免误判，比如"不错"本身是正面词
-                    if prev_word != '不错' and prev_word != '不是' and prev_word != '没什么':
-                        # 如果前一个词以否定词结尾（如"价不"），认为是否定
+                if len(neg_word) == 1 and neg_word in prev_word:
+                    if prev_word not in ['不错', '不是', '没什么']:
                         if prev_word.endswith(neg_word):
-                            return True
-        
-        return False
-    
+                            negation_count += 1
+                            break
+
+        return negation_count
+
     def _check_degree_in_window(self, words: List[str], current_idx: int) -> float:
         """
-        检查当前词的前两个词中是否包含程度副词
-        
+        检查当前词的前3个词中是否包含程度副词
+
         Args:
             words: 分词后的词列表
             current_idx: 当前词的索引
-            
+
         Returns:
             程度权重，默认1.0
         """
-        for offset in [1, 2]:
+        for offset in [1, 2, 3]:
             idx = current_idx - offset
             if idx < 0:
                 continue
-            
+
             prev_word = words[idx]
-            
-            # 直接匹配程度副词
+
             if prev_word in self.degree_words:
                 return self.degree_words[prev_word]
-        
+
         return 1.0
+    
+    def _check_special_patterns(self, words: List[str], current_idx: int, word: str) -> float:
+        """
+        检查特殊搭配模式
+        处理如"不后悔"、"没有惊喜"、"没发现问题"等特殊表达
+        
+        Args:
+            words: 分词后的词列表
+            current_idx: 当前词的索引
+            word: 当前词
+            
+        Returns:
+            修正后的修饰符，如果没有特殊模式则返回None
+        """
+        # 检查前面的词
+        if current_idx > 0:
+            prev_word = words[current_idx - 1]
+            
+            # 处理"没有/没什么/不太" + 正面词 -> 负面或中性
+            if word in self.positive_words and prev_word in ['没有', '没', '没什么', '不太', '不怎么']:
+                # 如果是"没有惊喜"、"没什么特别"等，应该降低正面程度或转为负面
+                if word in ['惊喜', '特别', '出色', '优秀', '满意']:
+                    return -0.5  # 转为轻微负面
+            
+            # 处理"没/没有" + "发现" + "问题" -> 应该为中性/正面，不是负面
+            if word == '问题' and prev_word in ['发现', '找到']:
+                if current_idx > 1 and words[current_idx - 2] in ['没', '没有', '未发现']:
+                    return 0.0  # 中性化，不计算得分
+            
+            # 处理"不" + 负面词，但这个词实际上在表达负面意思
+            # 例如"用起来很不方便" -> "不方便"应该更负面
+            if word in self.negative_words and prev_word == '不':
+                # 检查是否是"很/非常/特别" + "不" + 负面词的结构
+                if current_idx > 1 and words[current_idx - 2] in ['很', '非常', '特别', '十分']:
+                    return 1.5  # 加强负面程度
+            
+            # 处理"不怕/不担心" + 负面词 -> 应该为正面
+            if word in self.negative_words and prev_word in ['不怕', '不担心', '无惧']:
+                return 0.5  # 轻微正面（负面被否定）
+            
+            # 处理"特别/非常" + 正面词 -> 应该是加强正面，不是否定
+            # 修复"特别快"被错误处理的问题
+            if word in self.positive_words and prev_word in ['特别', '非常', '十分']:
+                # 检查再前面是否有否定词
+                if current_idx > 1 and words[current_idx - 2] in ['没有', '没', '没什么', '不太']:
+                    return -0.5  # 只有前面有否定时才转为负面
+                else:
+                    return 1.8  # 加强正面程度
+        
+        # 检查"没有特别惊喜"这种模式
+        if current_idx >= 2:
+            prev_word = words[current_idx - 1]
+            prev_prev_word = words[current_idx - 2]
+            
+            if word in ['惊喜', '出色', '优秀', '快', '好']:
+                if prev_word in ['特别', '很', '非常'] and prev_prev_word in ['没有', '没', '没什么']:
+                    return -0.3  # 轻微负面
+            
+            # 处理"冬天/夏天" + "不怕" + "冷/热" -> 正面
+            if word in ['冷', '热'] and prev_word in ['不怕', '不担心']:
+                return 0.5  # 轻微正面
+        
+        return None
     
     @lru_cache(maxsize=1000)
     def _analyze_cached(self, text: str) -> Dict:
         """
         带缓存的情感分析核心方法
-        
+
         Args:
             text: 输入文本
-            
+
         Returns:
             分析结果字典
         """
         words = self.segment(text)
-        
+
         total_score = 0
         word_scores = []
-        
+
         i = 0
         while i < len(words):
             word = words[i]
             score = 0
             modifier = 1.0
-            
-            # 检查否定词（改进后的窗口检测）
-            if self._check_negation_in_window(words, i):
-                modifier *= -1
-            
-            # 检查程度副词
-            degree_modifier = self._check_degree_in_window(words, i)
-            if degree_modifier != 1.0:
-                modifier *= degree_modifier
-            
+
+            # 先检查特殊搭配模式
+            special_modifier = self._check_special_patterns(words, i, word)
+            if special_modifier is not None:
+                modifier = special_modifier
+            else:
+                # 正常处理否定词
+                negation_count = self._count_negations_in_window(words, i)
+                if negation_count % 2 == 1:
+                    modifier *= -1
+
+                # 处理程度副词
+                degree_modifier = self._check_degree_in_window(words, i)
+                if degree_modifier != 1.0:
+                    modifier *= degree_modifier
+
             if word in self.positive_words:
                 score = self.positive_words[word] * modifier
             elif word in self.negative_words:
                 score = self.negative_words[word] * modifier
-            
+
             if score != 0:
                 total_score += score
                 word_scores.append({
@@ -278,12 +341,12 @@ class LexiconAnalyzer:
                     'modifier': modifier,
                     'final_score': score
                 })
-            
+
             i += 1
-        
-        sentiment = self._classify_sentiment(total_score)
+
+        sentiment = self._classify_sentiment(total_score, len(words), word_scores)
         confidence = self._calculate_confidence(total_score, word_scores, len(words))
-        
+
         return {
             'sentiment': sentiment,
             'score': total_score,
@@ -294,11 +357,50 @@ class LexiconAnalyzer:
             'negative_count': len([w for w in word_scores if w['final_score'] < 0]),
         }
     
-    def _classify_sentiment(self, score: float) -> str:
-        """根据得分分类情感"""
-        if score > 1:
+    def _classify_sentiment(self, score: float, word_count: int, word_scores: List[Dict] = None) -> str:
+        """
+        根据得分和文本长度动态分类情感
+        
+        优化策略：
+        1. 根据文本长度设置不同阈值
+        2. 考虑情感词数量和强度
+        3. 对于弱情感信号倾向于中性
+
+        Args:
+            score: 情感得分
+            word_count: 文本词数
+            word_scores: 情感词得分列表（可选）
+
+        Returns:
+            情感分类（正面/负面/中性）
+        """
+        # 计算情感词数量
+        sentiment_word_count = len(word_scores) if word_scores else 0
+        
+        # 根据文本长度和情感词数量动态调整阈值
+        if word_count < 10:
+            base_threshold = 0.5
+        elif word_count < 20:
+            base_threshold = 1.0
+        else:
+            base_threshold = 1.5
+        
+        # 如果情感词很少，提高阈值（倾向于中性）
+        if sentiment_word_count == 0:
+            threshold = base_threshold * 2
+        elif sentiment_word_count == 1:
+            threshold = base_threshold * 1.5
+        elif sentiment_word_count <= 2:
+            threshold = base_threshold * 1.2
+        else:
+            threshold = base_threshold
+        
+        # 对于绝对值较小的分数，更倾向于中性
+        if abs(score) <= threshold * 0.5:
+            return '中性'
+        elif score > threshold:
             return '正面'
-        elif score < -1:
+        elif score < -threshold:
             return '负面'
         else:
             return '中性'
