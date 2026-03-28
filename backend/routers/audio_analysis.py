@@ -164,7 +164,10 @@ async def load_speech_model():
     
     import threading
     def load_in_background():
-        speech_service.load_model()
+        try:
+            speech_service.load_model()
+        except Exception as e:
+            logger.error(f"后台加载模型失败: {e}")
     
     thread = threading.Thread(target=load_in_background, daemon=True)
     thread.start()
