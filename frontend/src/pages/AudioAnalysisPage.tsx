@@ -45,6 +45,7 @@ interface CachedResult {
 const AudioAnalysisPage: React.FC = () => {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [modelLoading, setModelLoading] = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
   const [transcription, setTranscription] = useState('');
   const [sentences, setSentences] = useState<SentenceResult[]>([]);
@@ -121,19 +122,36 @@ const AudioAnalysisPage: React.FC = () => {
 
   const loadModel = async () => {
     try {
-      setLoading(true);
+      setModelLoading(true);
       setError('');
+      
+      // 开始轮询模型状态
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch(`${API_ENDPOINTS.audio}/model-status`);
+          if (response.ok) {
+            const data = await response.json();
+            setModelStatus(data);
+            if (data.loaded || (!data.loading && !data.loaded)) {
+              clearInterval(pollInterval);
+              setModelLoading(false);
+            }
+          }
+        } catch (err) {
+          console.error('轮询模型状态失败:', err);
+        }
+      }, 500);
+      
       const response = await fetch(`${API_ENDPOINTS.audio}/load-model`, { method: 'POST' });
-      if (response.ok) {
-        await loadModelStatus();
-      } else {
+      if (!response.ok) {
         const data = await response.json();
         setError(data.detail || '模型加载失败');
+        clearInterval(pollInterval);
+        setModelLoading(false);
       }
     } catch (err) {
       setError('模型加载失败');
-    } finally {
-      setLoading(false);
+      setModelLoading(false);
     }
   };
 
@@ -312,12 +330,24 @@ const AudioAnalysisPage: React.FC = () => {
                 {!modelStatus.available && (
                   <span className="text-sm text-red-500">FunASR 未安装</span>
                 )}
-                {modelStatus.available && !modelStatus.loaded && !modelStatus.loading && (
+                {modelStatus.available && !modelStatus.loaded && !modelStatus.loading && !modelLoading && (
                   <button
                     onClick={loadModel}
                     className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-400 hover:from-purple-600 hover:to-pink-500 text-white font-medium rounded-xl transition-all duration-300"
                   >
                     加载模型
+                  </button>
+                )}
+                {modelLoading && (
+                  <button
+                    disabled
+                    className="px-4 py-2 bg-gray-400 text-white font-medium rounded-xl flex items-center gap-2"
+                  >
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    加载中...
                   </button>
                 )}
               </div>
