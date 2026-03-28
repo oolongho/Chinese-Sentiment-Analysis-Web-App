@@ -1,0 +1,49 @@
+{
+  "last_analysis": {
+    "completed_at": "2026-03-28T21:15:46.055703",
+    "transcription": "物流太慢了，等了一个多星期才收到，包装也很简陋，收到的时候已经压坏了。",
+    "sentences": [
+      {
+        "text": "物流太慢了，等了一个多星期才收到，包装也很简陋，收到的时候已经压坏了",
+        "lexicon_result": {
+          "sentiment": "负面",
+          "score": -4.0,
+          "confidence": 0.6418,
+          "sentiment_words": [
+            {
+              "word": "太慢",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            },
+            {
+              "word": "压坏",
+              "base_score": -2,
+              "modifier": 1.0,
+              "final_score": -2.0
+            }
+          ]
+        },
+        "model_result": {
+          "sentiment": "负面",
+          "confidence": 0.9929,
+          "scores": {
+            "正面": 0.0029,
+            "中性": 0.0041,
+            "负面": 0.9929
+          }
+        }
+      }
+    ],
+    "overall_sentiment": {
+      "sentiment": "负面",
+      "confidence": 0.9929,
+      "positive_ratio": 0.0,
+      "negative_ratio": 0.9929,
+      "neutral_ratio": 0.0
+    },
+    "audio_duration": 6.89,
+    "sentence_count": 1,
+    "gpu_memory_peak_mb": 2023.7
+  }
+}
