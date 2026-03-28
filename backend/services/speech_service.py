@@ -21,8 +21,9 @@ import tempfile
 logger = logging.getLogger('speech_service')
 
 FUNASR_AVAILABLE = False
+FunASRAutoModel = None
 try:
-    from funasr import AutoModel
+    from funasr import AutoModel as FunASRAutoModel
     FUNASR_AVAILABLE = True
     logger.info("FunASR 库已加载")
 except ImportError:
@@ -70,8 +71,10 @@ class FunASRService:
         self._last_used_time = None
         self._gpu_memory_mb = 0.0
         self._model_lock = threading.Lock()
+        self._state_lock = threading.Lock()
         self._unload_thread = None
         self._stop_unload_checker = False
+        self._model_in_use = False
         
         self._model_name = "paraformer-zh"
         self._punc_model_name = "ct-punc-c"
@@ -139,7 +142,7 @@ class FunASRService:
             self._load_progress = 0.2
             logger.info("加载语音识别模型...")
             
-            self._model = AutoModel(
+            model = FunASRAutoModel(
                 model=self._model_name,
                 model_revision="v2.0.4",
                 hub="ms"
@@ -148,11 +151,15 @@ class FunASRService:
             self._load_progress = 0.6
             logger.info("加载标点恢复模型...")
             
-            self._punc_model = AutoModel(
+            punc_model = FunASRAutoModel(
                 model=self._punc_model_name,
                 model_revision="v2.0.4",
                 hub="ms"
             )
+            
+            with self._model_lock:
+                self._model = model
+                self._punc_model = punc_model
             
             self._load_progress = 0.9
             
@@ -165,8 +172,9 @@ class FunASRService:
             
         except Exception as e:
             logger.error(f"加载 FunASR 模型失败: {e}")
-            self._model = None
-            self._punc_model = None
+            with self._model_lock:
+                self._model = None
+                self._punc_model = None
             self._load_progress = 0.0
             return False
         finally:
