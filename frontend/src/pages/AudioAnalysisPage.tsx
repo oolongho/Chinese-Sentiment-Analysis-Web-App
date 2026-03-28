@@ -396,7 +396,7 @@ const AudioAnalysisPage: React.FC = () => {
                     加载模型
                   </button>
                 )}
-                {modelStatus.load_error && (
+                {modelStatus.load_error && !modelLoading && (
                   <button
                     onClick={loadModel}
                     className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-xl transition-all duration-300"
