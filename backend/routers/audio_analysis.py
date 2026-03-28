@@ -24,6 +24,13 @@ logger = get_logger('audio_analysis')
 
 router = APIRouter(prefix='/api/audio', tags=['音频分析'])
 
+
+def reload_lexicon():
+    """重新加载词典分析器的词典"""
+    from sentiment import reload_lexicon_analyzer
+    return reload_lexicon_analyzer()
+
+
 UPLOAD_DIR = os.path.join(DATA_DIR, 'audio')
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -148,10 +155,21 @@ async def load_speech_model():
     if not FUNASR_AVAILABLE:
         raise HTTPException(status_code=400, detail='FunASR 库未安装，请运行: pip install funasr modelscope')
     
-    if speech_service.load_model():
-        return {'success': True, 'message': '模型加载成功'}
-    else:
-        raise HTTPException(status_code=500, detail='模型加载失败')
+    status = speech_service.get_status()
+    if status.loaded:
+        return {'success': True, 'message': '模型已加载'}
+    
+    if status.loading:
+        return {'success': True, 'message': '模型正在加载中...'}
+    
+    import threading
+    def load_in_background():
+        speech_service.load_model()
+    
+    thread = threading.Thread(target=load_in_background, daemon=True)
+    thread.start()
+    
+    return {'success': True, 'message': '开始加载模型...'}
 
 
 @router.post('/unload-model')
@@ -278,6 +296,13 @@ async def analyze_audio(file: UploadFile = File(...)):
     processing_time = time.time() - start_time
     
     logger.info(f"音频分析完成: {len(sentence_results)} 句, 整体情感: {overall_sentiment['sentiment']}")
+    
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            logger.debug(f"已清理临时文件: {filename}")
+    except Exception as e:
+        logger.warning(f"清理临时文件失败: {e}")
     
     from services.cache_service import save_audio_analysis_cache
     save_audio_analysis_cache(
