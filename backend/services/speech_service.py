@@ -45,6 +45,7 @@ class ModelStatus:
     gpu_memory_mb: float
     idle_seconds: float
     model_name: str
+    load_error: Optional[str] = None
 
 
 class FunASRService:
@@ -75,6 +76,7 @@ class FunASRService:
         self._unload_thread = None
         self._stop_unload_checker = False
         self._model_in_use = False
+        self._load_error: Optional[str] = None
         
         self._model_name = "paraformer-zh"
         self._punc_model_name = "ct-punc-c"
@@ -110,7 +112,8 @@ class FunASRService:
                 loading=self._loading,
                 gpu_memory_mb=self._gpu_memory_mb,
                 idle_seconds=idle_seconds,
-                model_name=self._model_name if self._model else ""
+                model_name=self._model_name if self._model else "",
+                load_error=self._load_error
             )
     
     def get_load_progress(self) -> float:
@@ -168,6 +171,7 @@ class FunASRService:
             self._load_progress = 1.0
             
             logger.info(f"FunASR 模型加载完成，显存占用: {self._gpu_memory_mb:.1f} MB")
+            self._load_error = None
             return True
             
         except Exception as e:
@@ -175,6 +179,7 @@ class FunASRService:
             with self._model_lock:
                 self._model = None
                 self._punc_model = None
+                self._load_error = str(e)
             self._load_progress = 0.0
             return False
         finally:

@@ -73,6 +73,7 @@ class ModelStatusResponse(BaseModel):
     gpu_memory_mb: float
     idle_seconds: float
     model_name: str
+    load_error: Optional[str] = None
 
 
 def get_audio_duration(filepath: str) -> float:
@@ -146,7 +147,8 @@ async def get_model_status():
         load_progress=speech_service.get_load_progress(),
         gpu_memory_mb=status.gpu_memory_mb,
         idle_seconds=status.idle_seconds,
-        model_name=status.model_name
+        model_name=status.model_name,
+        load_error=status.load_error
     )
 
 

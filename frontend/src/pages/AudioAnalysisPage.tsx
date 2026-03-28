@@ -9,6 +9,7 @@ interface ModelStatus {
   gpu_memory_mb: number;
   idle_seconds: number;
   model_name: string;
+  load_error?: string;
 }
 
 interface SentenceResult {
@@ -387,12 +388,20 @@ const AudioAnalysisPage: React.FC = () => {
                 {!modelStatus.available && (
                   <span className="text-sm text-red-500">FunASR 未安装</span>
                 )}
-                {modelStatus.available && !modelStatus.loaded && !modelStatus.loading && !modelLoading && (
+                {modelStatus.available && !modelStatus.loaded && !modelStatus.loading && !modelLoading && !modelStatus.load_error && (
                   <button
                     onClick={loadModel}
                     className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-400 hover:from-purple-600 hover:to-pink-500 text-white font-medium rounded-xl transition-all duration-300"
                   >
                     加载模型
+                  </button>
+                )}
+                {modelStatus.load_error && (
+                  <button
+                    onClick={loadModel}
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-xl transition-all duration-300"
+                  >
+                    重试加载
                   </button>
                 )}
                 {modelLoading && (
@@ -409,6 +418,11 @@ const AudioAnalysisPage: React.FC = () => {
                 )}
               </div>
             </div>
+            {modelStatus.load_error && (
+              <div className="mt-4 p-3 bg-red-50 text-red-600 rounded-xl text-sm">
+                加载失败: {modelStatus.load_error}
+              </div>
+            )}
             {modelStatus.loading && (
               <div className="mt-4">
                 <div className="flex justify-between items-center mb-2">
