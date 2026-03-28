@@ -44,9 +44,11 @@ interface CachedResult {
 
 const AudioAnalysisPage: React.FC = () => {
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const [localIdleSeconds, setLocalIdleSeconds] = useState(0);
   const [transcription, setTranscription] = useState('');
   const [sentences, setSentences] = useState<SentenceResult[]>([]);
   const [overallSentiment, setOverallSentiment] = useState<any>(null);
@@ -61,16 +63,47 @@ const AudioAnalysisPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const waveformRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const idleStartRef = useRef<number>(0);
 
   useEffect(() => {
     loadModelStatus();
     loadCachedResult();
     return () => {
-      if (audioRef.current) {
-        URL.revokeObjectURL(audioRef.current.src);
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
       }
     };
   }, []);
+  
+  useEffect(() => {
+    if (audioFile) {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      const newUrl = URL.createObjectURL(audioFile);
+      setAudioUrl(newUrl);
+      setIsPlaying(false);
+    }
+  }, [audioFile]);
+  
+  useEffect(() => {
+    if (modelStatus?.loaded && modelStatus.idle_seconds !== undefined) {
+      idleStartRef.current = Date.now() - modelStatus.idle_seconds * 1000;
+    }
+  }, [modelStatus?.loaded, modelStatus?.idle_seconds]);
+  
+  useEffect(() => {
+    if (!modelStatus?.loaded) return;
+    
+    const interval = setInterval(() => {
+      if (idleStartRef.current > 0) {
+        const elapsed = Math.floor((Date.now() - idleStartRef.current) / 1000);
+        setLocalIdleSeconds(elapsed);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [modelStatus?.loaded]);
 
   const loadModelStatus = async () => {
     try {
@@ -121,19 +154,20 @@ const AudioAnalysisPage: React.FC = () => {
   };
 
   const loadModel = async () => {
+    let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+    
     try {
       setModelLoading(true);
       setError('');
       
-      // 开始轮询模型状态
-      const pollInterval = setInterval(async () => {
+      pollIntervalId = setInterval(async () => {
         try {
           const response = await fetch(`${API_ENDPOINTS.audio}/model-status`);
           if (response.ok) {
             const data = await response.json();
             setModelStatus(data);
             if (data.loaded || (!data.loading && !data.loaded)) {
-              clearInterval(pollInterval);
+              if (pollIntervalId) clearInterval(pollIntervalId);
               setModelLoading(false);
             }
           }
@@ -146,44 +180,67 @@ const AudioAnalysisPage: React.FC = () => {
       if (!response.ok) {
         const data = await response.json();
         setError(data.detail || '模型加载失败');
-        clearInterval(pollInterval);
+        if (pollIntervalId) clearInterval(pollIntervalId);
         setModelLoading(false);
       }
     } catch (err) {
       setError('模型加载失败');
+      if (pollIntervalId) clearInterval(pollIntervalId);
       setModelLoading(false);
     }
   };
 
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith('audio/')) {
-      setAudioFile(file);
-      setTranscription('');
-      setSentences([]);
-      setOverallSentiment(null);
-      setIsFromCache(false);
-      setWaveformReady(true);
-      setError('');
-      
-      const audio = new Audio(URL.createObjectURL(file));
-      audio.onloadedmetadata = () => {
-        setAudioDuration(audio.duration);
-        if (audio.duration > 300) {
-          setError(`音频时长 ${audio.duration.toFixed(1)} 秒超过限制（最大 300 秒），请裁剪后重试`);
-        }
-      };
+    if (!file) return;
+    
+    const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/m4a', 'audio/x-m4a', 'audio/webm', 'audio/ogg'];
+    const allowedExtensions = ['.mp3', '.wav', '.m4a', '.webm', '.ogg'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+      setError('不支持的音频格式，请上传 MP3、WAV、M4A、WEBM 或 OGG 格式的文件');
+      return;
     }
+    
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError('文件大小超过限制（最大 100MB），请压缩后重试');
+      return;
+    }
+    
+    setAudioFile(file);
+    setTranscription('');
+    setSentences([]);
+    setOverallSentiment(null);
+    setIsFromCache(false);
+    setWaveformReady(true);
+    setError('');
+    
+    const audio = new Audio(URL.createObjectURL(file));
+    audio.onloadedmetadata = () => {
+      setAudioDuration(audio.duration);
+      if (audio.duration > 300) {
+        setError(`音频时长 ${audio.duration.toFixed(1)} 秒超过限制（最大 300 秒），请裁剪后重试`);
+      }
+    };
   };
 
   const handlePlayPause = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
+    if (!audioRef.current || !audioUrl) {
+      console.log('No audio loaded');
+      return;
+    }
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch((err) => {
+        console.error('Audio play error:', err);
+      });
     }
   };
 
@@ -324,7 +381,7 @@ const AudioAnalysisPage: React.FC = () => {
               <div className="flex items-center gap-3">
                 {modelStatus.loaded && (
                   <span className="text-sm text-gray-500">
-                    闲置: {Math.floor(modelStatus.idle_seconds)}s
+                    闲置: {localIdleSeconds}s
                   </span>
                 )}
                 {!modelStatus.available && (
@@ -499,7 +556,13 @@ const AudioAnalysisPage: React.FC = () => {
                 </div>
               </div>
               
-              <audio ref={audioRef} src={audioFile ? URL.createObjectURL(audioFile) : undefined} onEnded={() => setIsPlaying(false)} />
+              <audio 
+                ref={audioRef} 
+                src={audioUrl || undefined} 
+                onEnded={() => setIsPlaying(false)}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+              />
             </div>
           )}
 
