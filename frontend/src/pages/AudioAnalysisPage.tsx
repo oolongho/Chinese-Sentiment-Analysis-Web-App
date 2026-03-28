@@ -167,7 +167,7 @@ const AudioAnalysisPage: React.FC = () => {
           if (response.ok) {
             const data = await response.json();
             setModelStatus(data);
-            if (data.loaded || (!data.loading && !data.loaded)) {
+            if (data.loaded || data.load_error || (!data.loading && !data.loaded)) {
               if (pollIntervalId) clearInterval(pollIntervalId);
               setModelLoading(false);
             }
@@ -529,14 +529,11 @@ const AudioAnalysisPage: React.FC = () => {
                 >
                   {waveformReady ? (
                     <div className="w-full h-full flex items-center justify-center gap-0.5">
-                      {[...Array(60)].map((_, i) => (
-                        <div 
+                      {[20, 35, 50, 70, 55, 80, 65, 45, 60, 75, 50, 40, 65, 80, 55, 70, 45, 60, 75, 50, 35, 65, 80, 55, 40, 70, 60, 45, 75, 50, 35, 65, 80, 55, 45, 70, 60, 40, 75, 50, 35, 65, 55, 70, 45, 80, 60, 35, 50, 75, 40, 65, 55, 70, 45, 60, 80, 35, 50, 75].map((height, i) => (
+                        <div
                           key={i}
-                          className="flex-1 bg-gradient-to-t from-purple-500 to-pink-400 rounded-sm transition-all duration-300 hover:from-purple-400 hover:to-pink-300"
-                          style={{ 
-                            height: `${Math.random() * 60 + 20}%`,
-                            animationDelay: `${i * 0.02}s`
-                          }}
+                          className="flex-1 bg-gradient-to-t from-purple-500 to-pink-400 rounded-sm min-h-2"
+                          style={{ height: `${height}%` }}
                         ></div>
                       ))}
                     </div>
