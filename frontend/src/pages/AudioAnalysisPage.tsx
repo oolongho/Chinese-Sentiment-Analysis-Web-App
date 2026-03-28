@@ -169,6 +169,9 @@ const AudioAnalysisPage: React.FC = () => {
             setModelStatus(data);
             if (data.loaded || data.load_error || (!data.loading && !data.loaded)) {
               if (pollIntervalId) clearInterval(pollIntervalId);
+              if (data.load_error) {
+                setError(`模型加载失败: ${data.load_error}`);
+              }
               setModelLoading(false);
             }
           }
