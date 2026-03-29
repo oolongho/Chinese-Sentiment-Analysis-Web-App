@@ -11,11 +11,13 @@
 import os
 import asyncio
 import threading
+import time
 import pandas as pd
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 from collections import Counter
+from io import StringIO
 
 from config import DATA_DIR
 from sentiment import LexiconAnalyzer, ModelAnalyzer
@@ -42,7 +44,13 @@ evaluation_status = {
     'gpu_memory': {
         'current_mb': 0,
         'peak_mb': 0
-    }
+    },
+    'response_times': {
+        'model': [],
+        'lexicon': [],
+        'external': []
+    },
+    'all_predictions': []
 }
 
 
@@ -135,15 +143,29 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         evaluation_status['error'] = None
         evaluation_status['error_samples'] = {'model': [], 'lexicon': [], 'external': []}
         evaluation_status['gpu_memory'] = {'current_mb': 0, 'peak_mb': 0}
+        evaluation_status['response_times'] = {'model': [], 'lexicon': [], 'external': []}
+        evaluation_status['all_predictions'] = []
         
         results = {}
+        all_predictions = []
         
         evaluation_status['current_analyzer'] = 'model'
         evaluation_status['progress'] = 0
         model_predictions = []
+        model_times = []
         for i, text in enumerate(texts):
+            start_time = time.time()
             result = model_analyzer.predict(text)
+            elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
+            model_times.append(elapsed_time)
+            
             model_predictions.append(result['sentiment'])
+            all_predictions.append({
+                'text': text,
+                'true_label': labels[i],
+                'model_pred': result['sentiment'],
+                'model_time': elapsed_time
+            })
             if labels[i] != result['sentiment']:
                 evaluation_status['error_samples']['model'].append({
                     'text': text,
@@ -160,13 +182,22 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
             evaluation_status['gpu_memory'] = {'current_mb': current_mb, 'peak_mb': gpu_memory_peak}
             
         results['model'] = calculate_metrics(labels, model_predictions)
+        results['model']['avg_response_time'] = sum(model_times) / len(model_times) if model_times else 0
+        evaluation_status['response_times']['model'] = model_times
         
         evaluation_status['current_analyzer'] = 'lexicon'
         evaluation_status['progress'] = 0
         lexicon_predictions = []
+        lexicon_times = []
         for i, text in enumerate(texts):
+            start_time = time.time()
             result = lexicon_analyzer.analyze(text)
+            elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
+            lexicon_times.append(elapsed_time)
+            
             lexicon_predictions.append(result['sentiment'])
+            all_predictions[i]['lexicon_pred'] = result['sentiment']
+            all_predictions[i]['lexicon_time'] = elapsed_time
             if labels[i] != result['sentiment']:
                 evaluation_status['error_samples']['lexicon'].append({
                     'text': text,
@@ -176,17 +207,26 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
                 })
             evaluation_status['progress'] = i + 1
         results['lexicon'] = calculate_metrics(labels, lexicon_predictions)
+        results['lexicon']['avg_response_time'] = sum(lexicon_times) / len(lexicon_times) if lexicon_times else 0
+        evaluation_status['response_times']['lexicon'] = lexicon_times
         
         if include_external:
             evaluation_status['current_analyzer'] = 'external'
             evaluation_status['progress'] = 0
             external_predictions = []
+            external_times = []
             
             async def run_external():
                 for i, text in enumerate(texts):
+                    start_time = time.time()
                     result = await call_text_api(text)
+                    elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
+                    external_times.append(elapsed_time)
+                    
                     if result.get('success') and result.get('sentiment'):
                         external_predictions.append(result['sentiment'])
+                        all_predictions[i]['external_pred'] = result['sentiment']
+                        all_predictions[i]['external_time'] = elapsed_time
                         if labels[i] != result['sentiment']:
                             evaluation_status['error_samples']['external'].append({
                                 'text': text,
@@ -195,6 +235,8 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
                             })
                     else:
                         external_predictions.append('中性')
+                        all_predictions[i]['external_pred'] = '中性'
+                        all_predictions[i]['external_time'] = elapsed_time
                     evaluation_status['progress'] = i + 1
             
             loop = asyncio.new_event_loop()
@@ -203,6 +245,8 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
             loop.close()
             
             results['external'] = calculate_metrics(labels, external_predictions)
+            results['external']['avg_response_time'] = sum(external_times) / len(external_times) if external_times else 0
+            evaluation_status['response_times']['external'] = external_times
         
         for analyzer_type in ['model', 'lexicon']:
             if analyzer_type in results:
@@ -214,6 +258,7 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
                 })
         
         evaluation_status['results'] = results
+        evaluation_status['all_predictions'] = all_predictions
         evaluation_status['running'] = False
         evaluation_status['progress'] = total
         evaluation_status['gpu_memory'] = {'current_mb': 0, 'peak_mb': gpu_memory_peak}
@@ -222,7 +267,9 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
             results=results,
             error_samples=evaluation_status['error_samples'],
             gpu_memory_peak_mb=gpu_memory_peak,
-            data_info={'total': total}
+            data_info={'total': total},
+            all_predictions=all_predictions,
+            response_times=evaluation_status['response_times']
         )
         
     except Exception as e:
@@ -331,6 +378,7 @@ async def get_evaluation_results():
             'f1_score': results['model']['f1_score'],
             'total_samples': results['model']['total_samples'],
             'correct_predictions': results['model']['correct_predictions'],
+            'avg_response_time': results['model'].get('avg_response_time', 0),
             'confusion_matrix': results['model'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]])
         } if 'model' in results else None,
         'lexicon': {
@@ -340,6 +388,7 @@ async def get_evaluation_results():
             'f1_score': results['lexicon']['f1_score'],
             'total_samples': results['lexicon']['total_samples'],
             'correct_predictions': results['lexicon']['correct_predictions'],
+            'avg_response_time': results['lexicon'].get('avg_response_time', 0),
             'confusion_matrix': results['lexicon'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]])
         } if 'lexicon' in results else None,
         'external': {
@@ -349,6 +398,7 @@ async def get_evaluation_results():
             'f1_score': results['external']['f1_score'],
             'total_samples': results['external']['total_samples'],
             'correct_predictions': results['external']['correct_predictions'],
+            'avg_response_time': results['external'].get('avg_response_time', 0),
             'confusion_matrix': results['external'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]])
         } if 'external' in results else None
     }
@@ -409,3 +459,219 @@ async def clear_evaluation_cache():
     from services.cache_service import clear_evaluation_cache
     clear_evaluation_cache()
     return {'success': True, 'message': '评估缓存已清除'}
+
+
+@router.get('/export')
+async def export_evaluation_results(format: str = 'csv'):
+    """
+    导出评估结果
+    format: csv - 导出CSV格式的详细结果
+    """
+    if evaluation_status['results'] is None:
+        raise HTTPException(status_code=400, detail='暂无评估结果可导出')
+    
+    try:
+        results = evaluation_status['results']
+        all_predictions = evaluation_status.get('all_predictions', [])
+        
+        # 创建指标对比表
+        metrics_data = []
+        analyzer_names = {
+            'model': '深度学习模型',
+            'lexicon': '情感词典',
+            'external': '外部API'
+        }
+        
+        for key, name in analyzer_names.items():
+            if key in results:
+                metrics_data.append({
+                    '分析器': name,
+                    '准确率': f"{results[key]['accuracy'] * 100:.2f}%",
+                    '精确率': f"{results[key]['precision'] * 100:.2f}%",
+                    '召回率': f"{results[key]['recall'] * 100:.2f}%",
+                    'F1分数': f"{results[key]['f1_score'] * 100:.2f}%",
+                    '平均响应时间(ms)': f"{results[key].get('avg_response_time', 0):.2f}",
+                    '样本数': results[key]['total_samples']
+                })
+        
+        metrics_df = pd.DataFrame(metrics_data)
+        
+        # 创建详细预测结果表
+        if all_predictions:
+            detail_data = []
+            for pred in all_predictions:
+                row = {
+                    '文本': pred['text'],
+                    '真实标签': pred['true_label'],
+                    '深度学习模型预测': pred.get('model_pred', ''),
+                    '深度学习模型响应时间(ms)': f"{pred.get('model_time', 0):.2f}",
+                    '情感词典预测': pred.get('lexicon_pred', ''),
+                    '情感词典响应时间(ms)': f"{pred.get('lexicon_time', 0):.2f}"
+                }
+                if 'external_pred' in pred:
+                    row['外部API预测'] = pred['external_pred']
+                    row['外部API响应时间(ms)'] = f"{pred.get('external_time', 0):.2f}"
+                detail_data.append(row)
+            
+            detail_df = pd.DataFrame(detail_data)
+        
+        # 生成CSV
+        output = StringIO()
+        
+        # 写入指标对比表
+        output.write('# 三通道对比实验结果\n')
+        metrics_df.to_csv(output, index=False, encoding='utf-8-sig')
+        
+        if all_predictions:
+            output.write('\n# 详细预测结果\n')
+            detail_df.to_csv(output, index=False, encoding='utf-8-sig')
+        
+        output.seek(0)
+        content = output.getvalue()
+        output.close()
+        
+        return {
+            'success': True,
+            'content': content,
+            'filename': f'三通道对比实验结果_{pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'导出失败: {str(e)}')
+
+
+@router.post('/charts')
+async def generate_evaluation_charts():
+    """
+    生成评估对比图表
+    返回图表的base64编码
+    """
+    if evaluation_status['results'] is None:
+        raise HTTPException(status_code=400, detail='暂无评估结果可生成图表')
+    
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import base64
+        from io import BytesIO
+        
+        # 设置中文字体
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        results = evaluation_status['results']
+        
+        # 准备数据
+        analyzers = []
+        accuracy = []
+        precision = []
+        recall = []
+        f1_score = []
+        response_time = []
+        
+        analyzer_names = {
+            'model': '深度学习模型',
+            'lexicon': '情感词典',
+            'external': '外部API'
+        }
+        
+        for key in ['model', 'lexicon', 'external']:
+            if key in results:
+                analyzers.append(analyzer_names[key])
+                accuracy.append(results[key]['accuracy'] * 100)
+                precision.append(results[key]['precision'] * 100)
+                recall.append(results[key]['recall'] * 100)
+                f1_score.append(results[key]['f1_score'] * 100)
+                response_time.append(results[key].get('avg_response_time', 0))
+        
+        # 创建图表
+        fig = plt.figure(figsize=(16, 10))
+        
+        # 1. 指标对比柱状图
+        ax1 = plt.subplot(2, 2, 1)
+        x = np.arange(len(analyzers))
+        width = 0.2
+        
+        ax1.bar(x - 1.5*width, accuracy, width, label='准确率', color='#3b82f6')
+        ax1.bar(x - 0.5*width, precision, width, label='精确率', color='#10b981')
+        ax1.bar(x + 0.5*width, recall, width, label='召回率', color='#f59e0b')
+        ax1.bar(x + 1.5*width, f1_score, width, label='F1分数', color='#8b5cf6')
+        
+        ax1.set_ylabel('百分比 (%)')
+        ax1.set_title('(a) 三通道性能指标对比')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(analyzers)
+        ax1.legend()
+        ax1.grid(axis='y', alpha=0.3)
+        ax1.set_ylim(0, 100)
+        
+        # 2. 响应时间对比（对数刻度）
+        ax2 = plt.subplot(2, 2, 2)
+        colors = ['#3b82f6', '#8b5cf6', '#10b981']
+        bars = ax2.bar(analyzers, response_time, color=colors[:len(analyzers)])
+        ax2.set_ylabel('平均响应时间 (ms)')
+        ax2.set_title('(b) 响应时间对比')
+        ax2.set_yscale('log')
+        ax2.grid(axis='y', alpha=0.3)
+        
+        # 在柱子上添加数值
+        for bar, time in zip(bars, response_time):
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height,
+                     f'{time:.1f}ms', ha='center', va='bottom', fontsize=9)
+        
+        # 3. 雷达图
+        ax3 = plt.subplot(2, 2, 3, projection='polar')
+        categories = ['准确率', '精确率', '召回率', 'F1分数']
+        N = len(categories)
+        
+        angles = [n / float(N) * 2 * np.pi for n in range(N)]
+        angles += angles[:1]
+        
+        colors_radar = ['#3b82f6', '#8b5cf6', '#10b981']
+        for i, (analyzer, color) in enumerate(zip(analyzers, colors_radar)):
+            values = [accuracy[i], precision[i], recall[i], f1_score[i]]
+            values += values[:1]
+            ax3.plot(angles, values, 'o-', linewidth=2, label=analyzer, color=color)
+            ax3.fill(angles, values, alpha=0.15, color=color)
+        
+        ax3.set_xticks(angles[:-1])
+        ax3.set_xticklabels(categories)
+        ax3.set_ylim(0, 100)
+        ax3.set_title('(c) 多维度性能雷达图', pad=20)
+        ax3.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
+        ax3.grid(True)
+        
+        # 4. 准确率与响应时间散点图
+        ax4 = plt.subplot(2, 2, 4)
+        scatter_colors = ['#3b82f6', '#8b5cf6', '#10b981']
+        for i, (analyzer, color) in enumerate(zip(analyzers, scatter_colors)):
+            ax4.scatter(response_time[i], accuracy[i], s=200, c=color, label=analyzer, alpha=0.7)
+            ax4.annotate(analyzer, (response_time[i], accuracy[i]), 
+                        xytext=(5, 5), textcoords='offset points', fontsize=9)
+        
+        ax4.set_xlabel('平均响应时间 (ms)')
+        ax4.set_ylabel('准确率 (%)')
+        ax4.set_title('(d) 准确率-响应时间权衡')
+        ax4.set_xscale('log')
+        ax4.grid(True, alpha=0.3)
+        ax4.legend()
+        
+        plt.suptitle('三通道情感分析对比实验结果', fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        
+        # 保存为PNG
+        buffer = BytesIO()
+        plt.savefig(buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
+        buffer.seek(0)
+        png_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+        buffer.close()
+        plt.close()
+        
+        return {
+            'success': True,
+            'png_base64': png_base64
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'生成图表失败: {str(e)}')
