@@ -146,6 +146,55 @@ def compute_metrics(pred):
     }
 
 
+def _get_model_path(model_name: str = 'hfl/chinese-roberta-wwm-ext') -> str:
+    """
+    获取模型路径，优先使用本地模型
+    
+    检查顺序：
+    1. 本地预训练模型目录 (models/pretrained/)
+    2. 本地已下载的 HuggingFace 缓存
+    3. 在线下载 (使用镜像源)
+    """
+    # 1. 检查本地预训练模型目录
+    local_pretrained = os.path.join(MODEL_DIR, 'pretrained', 'roberta')
+    if os.path.exists(local_pretrained) and os.path.exists(os.path.join(local_pretrained, 'config.json')):
+        print(f"找到本地预训练模型: {local_pretrained}")
+        return local_pretrained
+    
+    # 2. 检查 HuggingFace 本地缓存
+    # 兼容新旧版本的 transformers
+    cache_dir = None
+    try:
+        # 尝试新版本方式
+        from transformers.utils import HF_HOME
+        cache_dir = os.path.join(HF_HOME, 'hub') if HF_HOME else None
+    except ImportError:
+        pass
+    
+    if cache_dir is None:
+        try:
+            # 尝试旧版本方式
+            from transformers.utils import TRANSFORMERS_CACHE
+            cache_dir = TRANSFORMERS_CACHE
+        except ImportError:
+            # 使用默认缓存路径
+            cache_dir = os.path.expanduser('~/.cache/huggingface/hub')
+    
+    model_cache_name = model_name.replace('/', '--')
+    cache_path = os.path.join(cache_dir, f'models--{model_cache_name}')
+    
+    if os.path.exists(cache_path):
+        # 查找快照目录中的实际模型文件
+        for root, dirs, files in os.walk(cache_path):
+            if 'config.json' in files:
+                print(f"找到 HuggingFace 缓存模型: {root}")
+                return root
+    
+    # 3. 使用在线模型（通过镜像源下载）
+    print(f"本地模型不存在，将使用在线模型: {model_name}")
+    return model_name
+
+
 def _train_model_core(
     model_name: str = 'hfl/chinese-roberta-wwm-ext',
     output_dir: str = None,
@@ -182,15 +231,30 @@ def _train_model_core(
         output_dir = os.path.join(MODEL_DIR, 'roberta_finetuned')
     os.makedirs(output_dir, exist_ok=True)
     
-    print(f"\n加载预训练模型: {model_name}")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_name,
-        num_labels=3,
-        id2label=ID_TO_LABEL,
-        label2id=LABEL_MAP,
-        use_safetensors=False
-    )
+    # 获取模型路径（优先本地）
+    model_path = _get_model_path(model_name)
+    print(f"\n加载预训练模型: {model_path}")
+    
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_path,
+            num_labels=3,
+            id2label=ID_TO_LABEL,
+            label2id=LABEL_MAP,
+            use_safetensors=False
+        )
+    except Exception as e:
+        print(f"加载本地模型失败: {e}")
+        print(f"尝试从 HuggingFace 下载: {model_name}")
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_name,
+            num_labels=3,
+            id2label=ID_TO_LABEL,
+            label2id=LABEL_MAP,
+            use_safetensors=False
+        )
     
     train_df, test_df = load_data(data_file)
     train_dataset, val_dataset = prepare_datasets(train_df, tokenizer, max_length=max_length)
