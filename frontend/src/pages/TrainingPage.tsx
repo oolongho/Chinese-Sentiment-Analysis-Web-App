@@ -737,7 +737,47 @@ const TrainingPage: React.FC = () => {
 
                 {(trainingStatus.status === 'training' || trainingStatus.status === 'completed') && trainingHistory?.epochs?.length > 0 && (
                   <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4">训练过程可视化</h4>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold text-gray-900">训练过程可视化</h4>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(`${API_ENDPOINTS.training}/export-training-data`, {
+                              headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            const data = await response.json();
+                            
+                            if (response.ok && data.success) {
+                              const csvBlob = new Blob(['\ufeff' + data.csv_content], { type: 'text/csv;charset=utf-8' });
+                              const csvUrl = URL.createObjectURL(csvBlob);
+                              const csvLink = document.createElement('a');
+                              csvLink.href = csvUrl;
+                              csvLink.download = data.csv_filename;
+                              csvLink.click();
+                              URL.revokeObjectURL(csvUrl);
+                              
+                              const pngLink = document.createElement('a');
+                              pngLink.href = `data:image/png;base64,${data.png_base64}`;
+                              pngLink.download = data.png_filename;
+                              pngLink.click();
+                              
+                              alert('训练数据导出成功！CSV文件和PNG图表已下载。');
+                            } else {
+                              alert(data.detail || '导出失败');
+                            }
+                          } catch (error) {
+                            console.error('导出训练数据失败:', error);
+                            alert('导出失败，请重试');
+                          }
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-400 hover:from-green-600 hover:to-emerald-500 text-white font-medium rounded-xl transition-all duration-300 shadow-sm hover:shadow-md"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        导出训练数据
+                      </button>
+                    </div>
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
                         <h5 className="text-sm font-medium text-gray-700 mb-2">Loss 曲线</h5>
