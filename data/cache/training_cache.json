@@ -1,59 +1,71 @@
 {
   "last_training": {
     "status": "completed",
-    "completed_at": "2026-03-29T19:50:28.065873",
+    "completed_at": "2026-03-29T21:05:38.652653",
     "metrics": {
-      "train_runtime": 259.8985,
-      "train_samples_per_second": 340.645,
-      "train_steps_per_second": 5.333,
-      "total_flos": 2911777526464128.0,
-      "train_loss": 0.11126756023018908,
-      "epoch": 3.0
+      "train_runtime": 726.5894,
+      "train_samples_per_second": 203.079,
+      "train_steps_per_second": 3.179,
+      "total_flos": 9705925088213760.0,
+      "train_loss": 0.07758765908288749,
+      "epoch": 5.0
     },
     "history": {
       "epochs": [
         1,
         2,
         3,
-        3
+        4,
+        5,
+        5
       ],
       "train_loss": [
         null,
         null,
         null,
-        0.11126756023018908
+        null,
+        null,
+        0.07758765908288749
       ],
       "eval_loss": [
-        0.019480329006910324,
-        0.01888590306043625,
-        0.02209232933819294,
+        0.017821654677391052,
+        0.018881164491176605,
+        0.02371855080127716,
+        0.021500706672668457,
+        0.021918296813964844,
         null
       ],
       "accuracy": [
-        0.9935975609756098,
-        0.9935975609756098,
         0.9945121951219512,
+        0.9948170731707318,
+        0.9954268292682927,
+        0.9957317073170732,
+        0.9957317073170732,
         null
       ],
       "f1": [
-        0.9935970421354713,
-        0.9935972677788061,
-        0.9945119014940815,
+        0.9945120497089812,
+        0.9948169256424307,
+        0.9954260016043082,
+        0.9957315385623471,
+        0.9957315399259936,
         null
       ],
       "learning_rate": [
         null,
         null,
         null,
+        null,
+        null,
         null
       ]
     },
-    "gpu_memory_peak_mb": 1592.2,
+    "gpu_memory_peak_mb": 1208.1,
     "params": {
-      "epochs": 3,
+      "epochs": 5,
       "batch_size": 32,
       "learning_rate": 2e-05,
-      "max_length": 64,
+      "max_length": 128,
       "warmup_ratio": 0.1,
       "weight_decay": 0.01
     },
