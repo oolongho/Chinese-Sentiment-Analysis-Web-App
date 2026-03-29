@@ -271,9 +271,32 @@ class LexiconAnalyzer:
         if not self.config.get('enable_pattern', True):
             return None
         
+        # 检查后面的词（处理"太+情感词+了"结构）
+        if current_idx < len(words) - 1:
+            next_word = words[current_idx + 1]
+            # 处理"太+情感词+了"结构
+            if next_word == '了':
+                # 检查前面是否有程度副词"太"
+                if current_idx > 0:
+                    prev_word = words[current_idx - 1]
+                    if prev_word == '太':
+                        # "太棒了"、"太好了"等 - 强烈正面
+                        if word in self.positive_words:
+                            return 2.5
+                        # "太烂了"、"太差了"等 - 强烈负面
+                        elif word in self.negative_words:
+                            return 2.5
+        
         # 检查前面的词
         if current_idx > 0:
             prev_word = words[current_idx - 1]
+            
+            # 处理"太" + 情感词（没有"了"结尾的情况）
+            if prev_word == '太':
+                if word in self.positive_words:
+                    return 2.0  # 强烈正面
+                elif word in self.negative_words:
+                    return 2.0  # 强烈负面
             
             # 处理"没有/没什么/不太" + 正面词 -> 负面或中性
             if word in self.positive_words and prev_word in ['没有', '没', '没什么', '不太', '不怎么']:

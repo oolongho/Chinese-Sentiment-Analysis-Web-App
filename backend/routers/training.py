@@ -588,11 +588,9 @@ async def export_ablation_charts(
         import matplotlib.pyplot as plt
         import numpy as np
         
-        # 设置中文字体
         plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
         plt.rcParams['axes.unicode_minus'] = False
         
-        # 转换数据为DataFrame
         df_data = []
         for r in request.results:
             df_data.append({
@@ -608,17 +606,15 @@ async def export_ablation_charts(
         
         df = pd.DataFrame(df_data)
         
-        # 创建图表 (1行2列)
         fig, axes = plt.subplots(1, 2, figsize=(14, 5))
         fig.suptitle('词典法消融实验结果分析', fontsize=16, fontweight='bold')
         
-        # 1. 准确率对比柱状图 (a)
         ax1 = axes[0]
         colors = ['#e5e7eb', '#93c5fd', '#60a5fa', '#3b82f6', '#8b5cf6']
         bars = ax1.bar(df['配置'], df['准确率'], color=colors, edgecolor='white', linewidth=1.5)
         ax1.set_ylabel('准确率 (%)', fontsize=11)
         ax1.set_title('(a) 各配置准确率对比', fontsize=12, fontweight='bold')
-        ax1.set_ylim(0, 100)  # 调整Y轴范围，给标签留出足够空间
+        ax1.set_ylim(0, 100)
         ax1.grid(axis='y', alpha=0.3, linestyle='--')
         
         for bar, acc in zip(bars, df['准确率']):
@@ -626,7 +622,6 @@ async def export_ablation_charts(
             ax1.text(bar.get_x() + bar.get_width()/2., height + 1.5,
                      f'{acc}%', ha='center', va='bottom', fontsize=10, fontweight='bold')
         
-        # 2. 相对提升折线图 (b)
         ax2 = axes[1]
         improvements = []
         for imp in df['相对提升']:
@@ -651,13 +646,11 @@ async def export_ablation_charts(
         
         plt.tight_layout()
         
-        # 保存为PNG到内存
         png_buffer = io.BytesIO()
         plt.savefig(png_buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
         png_buffer.seek(0)
         png_base64 = base64.b64encode(png_buffer.read()).decode('utf-8')
         
-        # 保存为PDF到内存
         pdf_buffer = io.BytesIO()
         plt.savefig(pdf_buffer, format='pdf', bbox_inches='tight', facecolor='white')
         pdf_buffer.seek(0)
@@ -674,3 +667,145 @@ async def export_ablation_charts(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'导出图表失败: {str(e)}')
+
+
+@router.get('/export-training-data')
+async def export_training_data(authorization: Optional[str] = Header(None)):
+    """
+    导出训练数据用于论文
+    包含：训练历史数据(CSV)、训练配置信息(CSV)、训练曲线图表(PNG)
+    """
+    check_auth(authorization)
+    
+    try:
+        import base64
+        import io
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        import numpy as np
+        from datetime import datetime
+        
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        from services.cache_service import load_training_cache
+        from services.training_service import get_training_history, get_training_status
+        
+        cached = load_training_cache()
+        history = get_training_history()
+        status = get_training_status()
+        
+        if not history or not history.get('epochs'):
+            if cached and cached.get('history'):
+                history = cached['history']
+            else:
+                raise HTTPException(status_code=400, detail='暂无训练数据可导出，请先完成模型训练')
+        
+        epochs = history.get('epochs', [])
+        train_loss = history.get('train_loss', [])
+        eval_loss = history.get('eval_loss', [])
+        accuracy = history.get('accuracy', [])
+        f1 = history.get('f1', [])
+        learning_rate = history.get('learning_rate', [])
+        
+        training_data = []
+        for i, epoch in enumerate(epochs):
+            row = {
+                'Epoch': epoch,
+                '训练损失': train_loss[i] if i < len(train_loss) else None,
+                '验证损失': eval_loss[i] if i < len(eval_loss) else None,
+                '准确率': accuracy[i] if i < len(accuracy) else None,
+                'F1分数': f1[i] if i < len(f1) else None,
+                '学习率': learning_rate[i] if i < len(learning_rate) else None
+            }
+            training_data.append(row)
+        
+        training_df = pd.DataFrame(training_data)
+        
+        config_data = []
+        
+        params = cached.get('params', {}) if cached else {}
+        config_data.append({'项目': '训练轮数 (Epochs)', '值': params.get('epochs', TRAINING_PARAMS.get('epochs', '-'))})
+        config_data.append({'项目': '批次大小 (Batch Size)', '值': params.get('batch_size', TRAINING_PARAMS.get('batch_size', '-'))})
+        config_data.append({'项目': '学习率 (Learning Rate)', '值': params.get('learning_rate', TRAINING_PARAMS.get('learning_rate', '-'))})
+        config_data.append({'项目': '最大序列长度 (Max Length)', '值': params.get('max_length', TRAINING_PARAMS.get('max_length', '-'))})
+        
+        if cached:
+            config_data.append({'项目': '训练状态', '值': cached.get('status', '-')})
+            config_data.append({'项目': '完成时间', '值': cached.get('completed_at', '-')})
+            if cached.get('gpu_memory_peak_mb'):
+                config_data.append({'项目': 'GPU显存峰值 (MB)', '值': f"{cached['gpu_memory_peak_mb']:.2f}"})
+            
+            metrics = cached.get('metrics', {})
+            if metrics:
+                config_data.append({'项目': '--- 最终评估指标 ---', '值': ''})
+                if metrics.get('eval_accuracy'):
+                    config_data.append({'项目': '最终准确率', '值': f"{metrics['eval_accuracy']*100:.2f}%"})
+                if metrics.get('eval_f1'):
+                    config_data.append({'项目': '最终F1分数', '值': f"{metrics['eval_f1']*100:.2f}%"})
+                if metrics.get('eval_loss'):
+                    config_data.append({'项目': '最终验证损失', '值': f"{metrics['eval_loss']:.4f}"})
+        
+        config_df = pd.DataFrame(config_data)
+        
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        fig.suptitle('模型训练过程分析', fontsize=16, fontweight='bold')
+        
+        ax1 = axes[0]
+        if train_loss and any(train_loss):
+            ax1.plot(epochs, train_loss, 'b-o', label='训练损失', linewidth=2, markersize=6)
+        if eval_loss and any(eval_loss):
+            ax1.plot(epochs, eval_loss, 'r-s', label='验证损失', linewidth=2, markersize=6)
+        ax1.set_xlabel('Epoch', fontsize=11)
+        ax1.set_ylabel('Loss', fontsize=11)
+        ax1.set_title('(a) 损失曲线', fontsize=12, fontweight='bold')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3, linestyle='--')
+        
+        ax2 = axes[1]
+        if accuracy and any(accuracy):
+            acc_percent = [acc * 100 if acc and acc <= 1 else acc for acc in accuracy]
+            ax2.plot(epochs, acc_percent, 'g-o', label='准确率', linewidth=2, markersize=6)
+        if f1 and any(f1):
+            f1_percent = [f * 100 if f and f <= 1 else f for f in f1]
+            ax2.plot(epochs, f1_percent, 'm-s', label='F1分数', linewidth=2, markersize=6)
+        ax2.set_xlabel('Epoch', fontsize=11)
+        ax2.set_ylabel('百分比 (%)', fontsize=11)
+        ax2.set_title('(b) 性能指标曲线', fontsize=12, fontweight='bold')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3, linestyle='--')
+        ax2.set_ylim(0, 100)
+        
+        plt.tight_layout()
+        
+        png_buffer = io.BytesIO()
+        plt.savefig(png_buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
+        png_buffer.seek(0)
+        png_base64 = base64.b64encode(png_buffer.read()).decode('utf-8')
+        plt.close()
+        
+        csv_output = io.StringIO()
+        csv_output.write('# 模型训练配置信息\n')
+        config_df.to_csv(csv_output, index=False, encoding='utf-8-sig')
+        csv_output.write('\n# 训练历史数据\n')
+        training_df.to_csv(csv_output, index=False, encoding='utf-8-sig')
+        csv_content = csv_output.getvalue()
+        csv_output.close()
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        return {
+            'success': True,
+            'message': '训练数据导出成功',
+            'csv_content': csv_content,
+            'csv_filename': f'训练数据_{timestamp}.csv',
+            'png_base64': png_base64,
+            'png_filename': f'训练曲线_{timestamp}.png'
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'导出训练数据失败: {str(e)}')
