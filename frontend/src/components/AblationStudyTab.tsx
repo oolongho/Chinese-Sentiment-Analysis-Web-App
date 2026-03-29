@@ -344,7 +344,7 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
           </svg>
           <div>
-            <h4 className="text-lg font-semibold text-gray-900 mb-1">词典法消融实验</h4>
+            <h4 className="text-lg font-semibold text-gray-900 mb-1">消融实验</h4>
             <p className="text-gray-600 text-sm">
               通过开关控制不同的优化模块，测试各模块对情感分析准确率的贡献。支持手动测试单个配置，或一键运行完整的5配置对比实验。
             </p>
@@ -394,15 +394,17 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
         </div>
       </div>
       
-      <div className="bg-white rounded-2xl p-6 border border-gray-200">
-        <h4 className="text-lg font-semibold text-gray-900 mb-4">测试数据</h4>
-        <div className="flex items-center space-x-4">
-          <label className="cursor-pointer">
-            <div className="border-2 border-dashed border-gray-300 rounded-xl px-6 py-3 text-center hover:border-purple-400 hover:bg-purple-50 transition-all duration-300">
-              <svg className="w-6 h-6 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl p-6 border border-gray-200">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4">1. 上传测试数据</h4>
+          <label className="block">
+            <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-all duration-300">
+              <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <span className="text-gray-600 font-medium text-sm">上传测试数据</span>
+              <p className="text-gray-600 font-medium">点击上传测试数据集</p>
+              <p className="text-gray-400 text-sm mt-1">支持 .xlsx, .xls 格式</p>
+              {file && <p className="text-green-600 font-medium mt-2 text-sm">已选择: {file.name}</p>}
             </div>
             <input
               type="file"
@@ -411,73 +413,72 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
               className="hidden"
             />
           </label>
-          {file && <span className="text-green-600 font-medium">已选择: {file.name}</span>}
+          <p className="text-gray-500 mt-3 text-sm">
+            文件需包含"文本"和"标签"两列，标签为"正面"/"负面"/"中性"
+          </p>
         </div>
-        <p className="text-gray-500 mt-3 text-sm">
-          文件需包含"文本"和"标签"两列，标签为"正面"/"负面"/"中性"
-        </p>
+        
+        <div className="bg-white rounded-2xl p-6 border border-gray-200">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4">2. 开始评估</h4>
+          <div className="space-y-3">
+            <button 
+              onClick={testCurrentConfig}
+              disabled={loading || !file}
+              className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-400 hover:from-purple-600 hover:to-pink-500 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              测试当前配置
+            </button>
+            <button 
+              onClick={runFullAblation}
+              disabled={loading || !file}
+              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-cyan-400 hover:from-indigo-600 hover:to-cyan-500 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+              运行完整消融实验
+            </button>
+          </div>
+        </div>
       </div>
       
-      <div className="flex flex-wrap gap-4">
-        <button 
-          onClick={testCurrentConfig}
-          disabled={loading}
-          style={{ backgroundColor: '#8b5cf6' }}
-          className="px-6 py-3 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:bg-purple-700"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          测试当前配置
-        </button>
-        <button 
-          onClick={runFullAblation}
-          disabled={loading}
-          style={{ backgroundColor: '#6366f1' }}
-          className="px-6 py-3 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:bg-indigo-700"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-          </svg>
-          运行完整消融实验
-        </button>
-        {results.length > 0 && (
-          <>
-            <button 
-              onClick={exportResults}
-              style={{ backgroundColor: '#10b981' }}
-              className="px-6 py-3 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 hover:bg-emerald-700"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              导出CSV
-            </button>
-            <button 
-              onClick={generateCharts}
-              disabled={exportingCharts}
-              style={{ backgroundColor: '#3b82f6' }}
-              className="px-6 py-3 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              {exportingCharts ? '生成中...' : '生成图表'}
-            </button>
-            <button 
-              onClick={exportCharts}
-              disabled={exportingCharts || !chartImage}
-              style={{ backgroundColor: '#f59e0b' }}
-              className="px-6 py-3 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              导出图表
-            </button>
-          </>
-        )}
-      </div>
+      {/* 导出按钮 - 放在框外，横向排列 */}
+      {results.length > 0 && (
+        <div className="flex flex-wrap gap-4">
+          <button 
+            onClick={exportResults}
+            className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            导出CSV
+          </button>
+          <button 
+            onClick={generateCharts}
+            disabled={exportingCharts}
+            className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            {exportingCharts ? '生成中...' : '生成图表'}
+          </button>
+          <button 
+            onClick={exportCharts}
+            disabled={exportingCharts || !chartImage}
+            className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            导出图表
+          </button>
+        </div>
+      )}
       
       {loading && (
         <div className="flex items-center justify-center py-8">

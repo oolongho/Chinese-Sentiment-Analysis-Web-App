@@ -165,7 +165,15 @@ const PerformancePage: React.FC = () => {
           <span className="text-lg font-bold text-gray-900">{stats.count}</span>
         </div>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm text-gray-600">平均响应时间</span>
+          <span className="text-sm text-gray-600 flex items-center gap-1 relative group">
+            平均响应时间
+            <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="absolute left-0 top-6 w-48 p-2 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+              基于实际用户请求统计的平均处理时间
+            </div>
+          </span>
           <span className="text-lg font-bold text-gray-900">{(stats.avg_time * 1000).toFixed(1)}ms</span>
         </div>
       </div>
