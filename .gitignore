@@ -94,6 +94,9 @@ temp/
 # Model files
 models/
 
+# Cache files
+data/cache/
+
 # Some data
 data/training/
 data/audio/
