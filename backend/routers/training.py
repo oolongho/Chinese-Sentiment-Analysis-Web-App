@@ -485,6 +485,24 @@ async def ablation_test(
     """
     check_auth(authorization)
     
+    # 1. 验证文件类型
+    allowed_extensions = {'.xlsx', '.xls'}
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型: {file_ext}。请上传 .xlsx 或 .xls 文件"
+        )
+    
+    # 2. 验证文件大小（10MB = 10 * 1024 * 1024 bytes）
+    max_file_size = 10 * 1024 * 1024
+    contents = await file.read()
+    if len(contents) > max_file_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件大小超过限制（最大10MB）"
+        )
+    
     try:
         import pandas as pd
         import io
@@ -492,13 +510,21 @@ async def ablation_test(
         from sentiment.lexicon_analyzer import LexiconAnalyzer
         
         # 读取上传的Excel文件
-        contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
         
         if '文本' not in df.columns or '标签' not in df.columns:
             raise HTTPException(
                 status_code=400,
                 detail="文件必须包含'文本'和'标签'两列"
+            )
+        
+        # 3. 验证标签值是否合法
+        valid_labels = {'正面', '负面', '中性'}
+        invalid_labels = set(df['标签'].unique()) - valid_labels
+        if invalid_labels:
+            raise HTTPException(
+                status_code=400,
+                detail=f"标签列包含非法值: {invalid_labels}。只允许: 正面/负面/中性"
             )
         
         texts = df['文本'].tolist()

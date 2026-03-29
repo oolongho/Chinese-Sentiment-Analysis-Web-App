@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 消融实验结果可视化 - 用于论文图表
-支持命令行参数控制是否保存图表
+支持命令行参数控制是否保存图表和指定输入文件
 """
 
 import sys
+import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
@@ -16,16 +17,76 @@ import os
 plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
-def generate_charts(save_files=False):
+
+def find_csv_file(data_dir, csv_path=None):
+    """
+    查找CSV文件
+    
+    Args:
+        data_dir: 数据目录
+        csv_path: 指定的CSV文件路径（可选）
+    
+    Returns:
+        找到的CSV文件路径
+    
+    Raises:
+        FileNotFoundError: 当找不到有效的CSV文件时
+    """
+    # 1. 如果指定了文件路径，优先使用
+    if csv_path:
+        if os.path.exists(csv_path):
+            return csv_path
+        else:
+            raise FileNotFoundError(f"指定的文件不存在: {csv_path}")
+    
+    # 2. 查找默认命名的文件
+    default_files = [
+        '消融实验结果_2026_3_29.csv',
+        '消融实验结果.csv'
+    ]
+    
+    for filename in default_files:
+        filepath = os.path.join(data_dir, filename)
+        if os.path.exists(filepath):
+            print(f"找到默认文件: {filepath}")
+            return filepath
+    
+    # 3. 查找任何消融实验相关的CSV文件
+    for filename in os.listdir(data_dir):
+        if filename.startswith('消融实验') and filename.endswith('.csv'):
+            filepath = os.path.join(data_dir, filename)
+            print(f"找到匹配文件: {filepath}")
+            return filepath
+    
+    # 4. 如果没有找到，抛出异常
+    raise FileNotFoundError(
+        f"未找到消融实验结果CSV文件。请确保文件存在于: {data_dir}\n"
+        f"支持的文件名: {', '.join(default_files)}\n"
+        f"或使用 --input 参数指定文件路径"
+    )
+
+
+def generate_charts(save_files=False, csv_path=None):
     """生成消融实验图表
     
     Args:
         save_files: 是否保存图表文件，False时只显示不保存
+        csv_path: 指定的CSV文件路径（可选）
     """
-    # 读取数据
+    # 获取数据目录
     data_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(data_dir, '消融实验结果_2026_3_29.csv')
-    df = pd.read_csv(csv_path, encoding='utf-8-sig')
+    
+    # 查找并读取CSV文件
+    try:
+        csv_file = find_csv_file(data_dir, csv_path)
+        print(f"正在读取文件: {csv_file}")
+        df = pd.read_csv(csv_file, encoding='utf-8-sig')
+    except FileNotFoundError as e:
+        print(f"错误: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"读取文件失败: {e}")
+        sys.exit(1)
 
     # 创建图表 (1行2列)
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -74,8 +135,10 @@ def generate_charts(save_files=False):
     plt.tight_layout()
     
     if save_files:
-        png_path = os.path.join(data_dir, '消融实验结果_图表.png')
-        pdf_path = os.path.join(data_dir, '消融实验结果_图表.pdf')
+        # 根据输入文件名生成输出文件名
+        base_name = os.path.splitext(os.path.basename(csv_file))[0]
+        png_path = os.path.join(data_dir, f'{base_name}_图表.png')
+        pdf_path = os.path.join(data_dir, f'{base_name}_图表.pdf')
         plt.savefig(png_path, dpi=300, bbox_inches='tight', facecolor='white')
         plt.savefig(pdf_path, bbox_inches='tight', facecolor='white')
         print(f"图表已保存: {png_path}")
@@ -85,11 +148,17 @@ def generate_charts(save_files=False):
     
     plt.close()
 
-def generate_latex_table():
+
+def generate_latex_table(csv_path=None):
     """生成LaTeX表格代码"""
     data_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(data_dir, '消融实验结果_2026_3_29.csv')
-    df = pd.read_csv(csv_path, encoding='utf-8-sig')
+    
+    try:
+        csv_file = find_csv_file(data_dir, csv_path)
+        df = pd.read_csv(csv_file, encoding='utf-8-sig')
+    except FileNotFoundError as e:
+        print(f"错误: {e}")
+        return
     
     print("\n=== LaTeX表格代码 ===")
     print(r"\begin{table}[htbp]")
@@ -106,23 +175,72 @@ def generate_latex_table():
     print(r"\end{tabular}")
     print(r"\end{table}")
 
-def generate_markdown_table():
+
+def generate_markdown_table(csv_path=None):
     """生成Markdown表格"""
     data_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(data_dir, '消融实验结果_2026_3_29.csv')
-    df = pd.read_csv(csv_path, encoding='utf-8-sig')
+    
+    try:
+        csv_file = find_csv_file(data_dir, csv_path)
+        df = pd.read_csv(csv_file, encoding='utf-8-sig')
+    except FileNotFoundError as e:
+        print(f"错误: {e}")
+        return
     
     print("\n=== Markdown表格 ===")
     print(df.to_markdown(index=False))
 
+
 if __name__ == '__main__':
-    # 检查是否有 --export 参数
-    if '--export' in sys.argv or '-e' in sys.argv:
-        generate_charts(save_files=True)
-        generate_latex_table()
-        generate_markdown_table()
+    # 使用argparse处理命令行参数
+    parser = argparse.ArgumentParser(
+        description='消融实验结果可视化工具',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+使用示例:
+  python ablation_visualization.py                    # 显示图表
+  python ablation_visualization.py --export           # 保存图表到文件
+  python ablation_visualization.py -e -i result.csv   # 指定输入文件并导出
+        '''
+    )
+    
+    parser.add_argument(
+        '-e', '--export',
+        action='store_true',
+        help='导出图表到文件（PNG和PDF）'
+    )
+    
+    parser.add_argument(
+        '-i', '--input',
+        type=str,
+        default=None,
+        help='指定输入的CSV文件路径（可选，默认自动查找）'
+    )
+    
+    parser.add_argument(
+        '--latex',
+        action='store_true',
+        help='生成LaTeX表格代码'
+    )
+    
+    parser.add_argument(
+        '--markdown',
+        action='store_true',
+        help='生成Markdown表格'
+    )
+    
+    args = parser.parse_args()
+    
+    # 执行相应操作
+    if args.latex:
+        generate_latex_table(args.input)
+    elif args.markdown:
+        generate_markdown_table(args.input)
     else:
-        # 默认只显示图表，不保存
-        generate_charts(save_files=False)
-        print("\n提示: 添加 --export 或 -e 参数可导出图表文件")
-        print("例如: python ablation_visualization.py --export")
+        # 默认生成图表
+        generate_charts(save_files=args.export, csv_path=args.input)
+        
+        if not args.export:
+            print("\n提示: 添加 --export 或 -e 参数可导出图表文件")
+            print("      添加 --input 或 -i 参数可指定输入文件")
+            print("例如: python ablation_visualization.py --export --input result.csv")
