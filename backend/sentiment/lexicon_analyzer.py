@@ -25,7 +25,25 @@ logger = get_logger('lexicon_analyzer')
 class LexiconAnalyzer:
     """基于情感词典的情感分析器"""
     
-    def __init__(self):
+    def __init__(self, config: Dict = None):
+        """
+        初始化情感分析器
+        
+        Args:
+            config: 配置字典，用于控制各优化模块的启用/禁用
+                - enable_negation: 是否启用否定词处理 (默认True)
+                - enable_degree: 是否启用程度副词加权 (默认True)
+                - enable_pattern: 是否启用特殊搭配模式 (默认True)
+                - enable_dynamic_threshold: 是否启用动态阈值 (默认True)
+        """
+        # 配置参数
+        self.config = config or {
+            'enable_negation': True,
+            'enable_degree': True,
+            'enable_pattern': True,
+            'enable_dynamic_threshold': True
+        }
+        
         self.positive_words: Dict[str, int] = {}
         self.negative_words: Dict[str, int] = {}
         self.degree_words: Dict[str, float] = {}
@@ -183,6 +201,10 @@ class LexiconAnalyzer:
         Returns:
             否定词数量
         """
+        # 如果禁用否定词处理，直接返回0
+        if not self.config.get('enable_negation', True):
+            return 0
+        
         negation_count = 0
 
         for offset in [1, 2, 3]:
@@ -216,6 +238,10 @@ class LexiconAnalyzer:
         Returns:
             程度权重，默认1.0
         """
+        # 如果禁用程度副词处理，直接返回1.0（无加权）
+        if not self.config.get('enable_degree', True):
+            return 1.0
+        
         for offset in [1, 2, 3]:
             idx = current_idx - offset
             if idx < 0:
@@ -241,6 +267,10 @@ class LexiconAnalyzer:
         Returns:
             修正后的修饰符，如果没有特殊模式则返回None
         """
+        # 如果禁用特殊搭配模式处理，直接返回None
+        if not self.config.get('enable_pattern', True):
+            return None
+        
         # 检查前面的词
         if current_idx > 0:
             prev_word = words[current_idx - 1]
@@ -374,6 +404,18 @@ class LexiconAnalyzer:
         Returns:
             情感分类（正面/负面/中性）
         """
+        # 如果禁用动态阈值，使用固定阈值
+        if not self.config.get('enable_dynamic_threshold', True):
+            threshold = 1.0
+            if abs(score) <= threshold * 0.5:
+                return '中性'
+            elif score > threshold:
+                return '正面'
+            elif score < -threshold:
+                return '负面'
+            else:
+                return '中性'
+        
         # 计算情感词数量
         sentiment_word_count = len(word_scores) if word_scores else 0
         

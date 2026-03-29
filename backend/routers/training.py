@@ -7,7 +7,7 @@
 import os
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, Header
+from fastapi import APIRouter, HTTPException, UploadFile, File, Header, Form
 from pydantic import BaseModel
 
 from config import (
@@ -468,3 +468,183 @@ async def check_external_api_config(authorization: Optional[str] = Header(None))
         'text_model': config.get('text_model', ''),
         'audio_model': config.get('audio_model', '')
     }
+
+
+@router.post('/ablation-test')
+async def ablation_test(
+    file: UploadFile = File(...),
+    enable_negation: bool = Form(True),
+    enable_degree: bool = Form(True),
+    enable_pattern: bool = Form(True),
+    enable_dynamic_threshold: bool = Form(True),
+    authorization: Optional[str] = Header(None)
+):
+    """
+    词典法消融实验测试接口
+    上传测试数据，指定配置，返回准确率等指标
+    """
+    check_auth(authorization)
+    
+    try:
+        import pandas as pd
+        import io
+        from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+        from sentiment.lexicon_analyzer import LexiconAnalyzer
+        
+        # 读取上传的Excel文件
+        contents = await file.read()
+        df = pd.read_excel(io.BytesIO(contents))
+        
+        if '文本' not in df.columns or '标签' not in df.columns:
+            raise HTTPException(
+                status_code=400,
+                detail="文件必须包含'文本'和'标签'两列"
+            )
+        
+        texts = df['文本'].tolist()
+        labels = df['标签'].tolist()
+        
+        # 创建指定配置的分析器
+        config_dict = {
+            'enable_negation': enable_negation,
+            'enable_degree': enable_degree,
+            'enable_pattern': enable_pattern,
+            'enable_dynamic_threshold': enable_dynamic_threshold
+        }
+        analyzer = LexiconAnalyzer(config=config_dict)
+        
+        # 预测
+        predictions = []
+        for text in texts:
+            result = analyzer.analyze(text)
+            predictions.append(result['sentiment'])
+        
+        # 计算指标
+        acc = accuracy_score(labels, predictions)
+        prec = precision_score(labels, predictions, average='weighted', zero_division=0)
+        rec = recall_score(labels, predictions, average='weighted', zero_division=0)
+        f1 = f1_score(labels, predictions, average='weighted', zero_division=0)
+        
+        return {
+            'config': config_dict,
+            'sample_count': len(texts),
+            'accuracy': round(acc * 100, 2),
+            'precision': round(prec * 100, 2),
+            'recall': round(rec * 100, 2),
+            'f1_score': round(f1 * 100, 2)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'消融实验测试失败: {str(e)}')
+
+
+class AblationChartRequest(BaseModel):
+    """消融实验图表请求"""
+    results: list
+
+
+@router.post('/export-ablation-charts')
+async def export_ablation_charts(
+    request: AblationChartRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    导出消融实验图表
+    接收前端传递的实验结果数据，生成PNG图表并返回base64编码
+    """
+    check_auth(authorization)
+    
+    try:
+        import os
+        import base64
+        import io
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import numpy as np
+        
+        # 设置中文字体
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        # 转换数据为DataFrame
+        df_data = []
+        for r in request.results:
+            df_data.append({
+                '配置': r.get('config', r.get('key', '')),
+                '描述': r.get('description', ''),
+                '样本数': r.get('sample_count', 0),
+                '准确率': r.get('accuracy', 0),
+                '精确率': r.get('precision', 0),
+                '召回率': r.get('recall', 0),
+                'F1值': r.get('f1_score', 0),
+                '相对提升': r.get('improvement', '-')
+            })
+        
+        df = pd.DataFrame(df_data)
+        
+        # 创建图表 (1行2列)
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        fig.suptitle('词典法消融实验结果分析', fontsize=16, fontweight='bold')
+        
+        # 1. 准确率对比柱状图 (a)
+        ax1 = axes[0]
+        colors = ['#e5e7eb', '#93c5fd', '#60a5fa', '#3b82f6', '#8b5cf6']
+        bars = ax1.bar(df['配置'], df['准确率'], color=colors, edgecolor='white', linewidth=1.5)
+        ax1.set_ylabel('准确率 (%)', fontsize=11)
+        ax1.set_title('(a) 各配置准确率对比', fontsize=12, fontweight='bold')
+        ax1.set_ylim(0, 100)  # 调整Y轴范围，给标签留出足够空间
+        ax1.grid(axis='y', alpha=0.3, linestyle='--')
+        
+        for bar, acc in zip(bars, df['准确率']):
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width()/2., height + 1.5,
+                     f'{acc}%', ha='center', va='bottom', fontsize=10, fontweight='bold')
+        
+        # 2. 相对提升折线图 (b)
+        ax2 = axes[1]
+        improvements = []
+        for imp in df['相对提升']:
+            if imp == '-':
+                improvements.append(0)
+            else:
+                improvements.append(float(str(imp).replace('%', '').replace('+', '')))
+        
+        ax2.plot(df['配置'], improvements, marker='o', markersize=10, linewidth=2.5, 
+                 color='#8b5cf6', markerfacecolor='#a78bfa', markeredgecolor='#8b5cf6', markeredgewidth=2)
+        ax2.fill_between(range(len(df)), improvements, alpha=0.3, color='#8b5cf6')
+        ax2.set_ylabel('相对提升 (%)', fontsize=11)
+        ax2.set_title('(b) 各模块贡献度分析', fontsize=12, fontweight='bold')
+        ax2.grid(True, alpha=0.3, linestyle='--')
+        ax2.set_xticks(range(len(df)))
+        ax2.set_xticklabels(df['配置'])
+        
+        for i, (x, y) in enumerate(zip(range(len(df)), improvements)):
+            if y > 0:
+                ax2.annotate(f'+{y:.2f}%', (x, y), textcoords="offset points", 
+                             xytext=(0, 10), ha='center', fontsize=9, fontweight='bold', color='#7c3aed')
+        
+        plt.tight_layout()
+        
+        # 保存为PNG到内存
+        png_buffer = io.BytesIO()
+        plt.savefig(png_buffer, format='png', dpi=300, bbox_inches='tight', facecolor='white')
+        png_buffer.seek(0)
+        png_base64 = base64.b64encode(png_buffer.read()).decode('utf-8')
+        
+        # 保存为PDF到内存
+        pdf_buffer = io.BytesIO()
+        plt.savefig(pdf_buffer, format='pdf', bbox_inches='tight', facecolor='white')
+        pdf_buffer.seek(0)
+        pdf_base64 = base64.b64encode(pdf_buffer.read()).decode('utf-8')
+        
+        plt.close()
+        
+        return {
+            'success': True,
+            'message': '图表生成成功',
+            'png_base64': png_base64,
+            'pdf_base64': pdf_base64
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'导出图表失败: {str(e)}')
