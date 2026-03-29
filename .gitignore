@@ -104,3 +104,5 @@ data/stats.json
 data/external_api_config.json
 毕设论文相关资料
 data/evaluation_data.xlsx
+.csv
+.png
