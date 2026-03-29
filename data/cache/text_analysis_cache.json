@@ -1,6 +1,6 @@
 {
   "last_analysis": {
-    "completed_at": "2026-03-25T13:11:12.295506",
+    "completed_at": "2026-03-28T23:09:39.352987",
     "input_text": "做工精致，材质优良，用着很放心。\n经常出故障，售后推诿责任，差评。\n质量一般，对得起价格，凑合用吧。\n外机噪音太大，邻居都来投诉了，后悔买了这个牌子。\n尺寸不对，退货还要自己承担运费，不合理。\n光线柔和不刺眼，多档亮度可调，学习工作都很适合。\n安装简单，使用方便，整体体验很好。\n使用效果一般，符合这个价位的水准。\n与描述不符，虚假宣传，再也不会买了。\n使用效果明显，超出预期，会再回购。\n安装简单，使用方便，整体体验很好。\n外观普通，实用性还可以，不吹不黑。\n收到的商品有破损，客服态度差，很失望。\n正常使用没问题，就是充电速度比宣传慢一些。\n用后感觉就那样，不会特别推荐但也能接受。\n经常出故障，售后推诿责任，差评。\n说不上好也说不上坏，标准工业品水平。\n质量太差，用了几天就坏了，要求退货。\n使用效果一般，符合这个价位的水准。",
     "results": [
       {
@@ -9,23 +9,23 @@
           "sentiment": "正面",
           "score": 0.9993,
           "confidence": 0.9993,
-          "processing_time": 0.2793,
+          "processing_time": 0.7625,
           "sentiment_words": null,
           "scores": {
             "正面": 0.9993,
             "中性": 0.0005,
             "负面": 0.0002
           },
-          "cpu_peak": 56.0,
-          "cpu_avg": 28.58888888888889,
-          "gpu_peak": 96.0,
-          "gpu_avg": 47.0
+          "cpu_peak": 73.1,
+          "cpu_avg": 39.534782608695664,
+          "gpu_peak": 27.0,
+          "gpu_avg": 17.217391304347824
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 8.0,
           "confidence": 0.7163,
-          "processing_time": 0.027,
+          "processing_time": 0.1967,
           "sentiment_words": [
             {
               "word": "精致",
@@ -47,10 +47,10 @@
             }
           ],
           "scores": null,
-          "cpu_peak": 0.0,
-          "cpu_avg": 0.0,
-          "gpu_peak": null,
-          "gpu_avg": null
+          "cpu_peak": 45.8,
+          "cpu_avg": 26.366666666666664,
+          "gpu_peak": 27.0,
+          "gpu_avg": 27.0
         }
       },
       {
@@ -59,7 +59,7 @@
           "sentiment": "负面",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0311,
+          "processing_time": 0.0319,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -68,14 +68,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 96.0,
-          "gpu_avg": 96.0
+          "gpu_peak": 27.0,
+          "gpu_avg": 27.0
         },
         "lexicon_result": {
           "sentiment": "负面",
           "score": -7.0,
           "confidence": 0.6979,
-          "processing_time": 0.0248,
+          "processing_time": 0.0339,
           "sentiment_words": [
             {
               "word": "故障",
@@ -109,23 +109,23 @@
           "sentiment": "中性",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0624,
+          "processing_time": 0.0307,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
             "中性": 0.9998,
             "负面": 0.0001
           },
-          "cpu_peak": 100.0,
-          "cpu_avg": 50.0,
-          "gpu_peak": 96.0,
-          "gpu_avg": 96.0
+          "cpu_peak": 0.0,
+          "cpu_avg": 0.0,
+          "gpu_peak": 27.0,
+          "gpu_avg": 27.0
         },
         "lexicon_result": {
           "sentiment": "中性",
           "score": 0.0,
           "confidence": 0.3,
-          "processing_time": 0.0308,
+          "processing_time": 0.0306,
           "sentiment_words": [],
           "scores": null,
           "cpu_peak": 0.0,
@@ -140,7 +140,7 @@
           "sentiment": "负面",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.031,
+          "processing_time": 0.0304,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -149,14 +149,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 96.0,
-          "gpu_avg": 96.0
+          "gpu_peak": 27.0,
+          "gpu_avg": 27.0
         },
         "lexicon_result": {
           "sentiment": "负面",
           "score": -7.0,
           "confidence": 0.6923,
-          "processing_time": 0.0243,
+          "processing_time": 0.0289,
           "sentiment_words": [
             {
               "word": "噪音",
@@ -190,23 +190,23 @@
           "sentiment": "负面",
           "score": 0.9995,
           "confidence": 0.9995,
-          "processing_time": 0.0309,
+          "processing_time": 0.0308,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0002,
             "中性": 0.0002,
             "负面": 0.9995
           },
-          "cpu_peak": 0.0,
-          "cpu_avg": 0.0,
-          "gpu_peak": 96.0,
-          "gpu_avg": 96.0
+          "cpu_peak": 80.0,
+          "cpu_avg": 80.0,
+          "gpu_peak": 27.0,
+          "gpu_avg": 27.0
         },
         "lexicon_result": {
           "sentiment": "负面",
           "score": -3.0,
           "confidence": 0.6312,
-          "processing_time": 0.031,
+          "processing_time": 0.0262,
           "sentiment_words": [
             {
               "word": "不对",
@@ -234,7 +234,7 @@
           "sentiment": "正面",
           "score": 0.9928,
           "confidence": 0.9928,
-          "processing_time": 0.031,
+          "processing_time": 0.0301,
           "sentiment_words": null,
           "scores": {
             "正面": 0.9928,
@@ -243,14 +243,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 96.0,
-          "gpu_avg": 96.0
+          "gpu_peak": 10.0,
+          "gpu_avg": 10.0
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 4.0,
           "confidence": 0.647,
-          "processing_time": 0.0277,
+          "processing_time": 0.0285,
           "sentiment_words": [
             {
               "word": "柔和",
@@ -287,14 +287,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 13.0,
-          "gpu_avg": 13.0
+          "gpu_peak": 10.0,
+          "gpu_avg": 10.0
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 3.0,
           "confidence": 0.6985,
-          "processing_time": 0.0277,
+          "processing_time": 0.0247,
           "sentiment_words": [
             {
               "word": "很好",
@@ -316,7 +316,7 @@
           "sentiment": "中性",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0309,
+          "processing_time": 0.0332,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -325,14 +325,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 13.0,
-          "gpu_avg": 13.0
+          "gpu_peak": 10.0,
+          "gpu_avg": 10.0
         },
         "lexicon_result": {
           "sentiment": "中性",
           "score": 0.0,
           "confidence": 0.3,
-          "processing_time": 0.0277,
+          "processing_time": 0.0262,
           "sentiment_words": [],
           "scores": null,
           "cpu_peak": 0.0,
@@ -347,7 +347,7 @@
           "sentiment": "负面",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0309,
+          "processing_time": 0.0297,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -356,14 +356,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 13.0,
-          "gpu_avg": 13.0
+          "gpu_peak": 10.0,
+          "gpu_avg": 10.0
         },
         "lexicon_result": {
           "sentiment": "中性",
           "score": -1.0,
           "confidence": 0.5829,
-          "processing_time": 0.0301,
+          "processing_time": 0.0248,
           "sentiment_words": [
             {
               "word": "不符",
@@ -385,7 +385,7 @@
           "sentiment": "正面",
           "score": 0.9992,
           "confidence": 0.9992,
-          "processing_time": 0.0316,
+          "processing_time": 0.031,
           "sentiment_words": null,
           "scores": {
             "正面": 0.9992,
@@ -394,14 +394,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 13.0,
-          "gpu_avg": 13.0
+          "gpu_peak": 10.0,
+          "gpu_avg": 10.0
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 2.0,
           "confidence": 0.6381,
-          "processing_time": 0.0308,
+          "processing_time": 0.0271,
           "sentiment_words": [
             {
               "word": "回购",
@@ -423,7 +423,7 @@
           "sentiment": "正面",
           "score": 0.9989,
           "confidence": 0.9989,
-          "processing_time": 0.0306,
+          "processing_time": 0.0316,
           "sentiment_words": null,
           "scores": {
             "正面": 0.9989,
@@ -432,14 +432,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 13.0,
-          "gpu_avg": 13.0
+          "gpu_peak": 10.0,
+          "gpu_avg": 10.0
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 3.0,
           "confidence": 0.6985,
-          "processing_time": 0.0304,
+          "processing_time": 0.0249,
           "sentiment_words": [
             {
               "word": "很好",
@@ -461,7 +461,7 @@
           "sentiment": "中性",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0306,
+          "processing_time": 0.0333,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -470,14 +470,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 13.0,
-          "gpu_avg": 13.0
+          "gpu_peak": 5.0,
+          "gpu_avg": 5.0
         },
         "lexicon_result": {
           "sentiment": "中性",
           "score": 0.0,
           "confidence": 0.3,
-          "processing_time": 0.0293,
+          "processing_time": 0.0256,
           "sentiment_words": [],
           "scores": null,
           "cpu_peak": 0.0,
@@ -492,7 +492,7 @@
           "sentiment": "负面",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.031,
+          "processing_time": 0.0311,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -501,14 +501,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 7.0,
-          "gpu_avg": 7.0
+          "gpu_peak": 5.0,
+          "gpu_avg": 5.0
         },
         "lexicon_result": {
           "sentiment": "负面",
           "score": -6.0,
           "confidence": 0.6864,
-          "processing_time": 0.0324,
+          "processing_time": 0.0249,
           "sentiment_words": [
             {
               "word": "破损",
@@ -542,7 +542,7 @@
           "sentiment": "中性",
           "score": 0.593,
           "confidence": 0.593,
-          "processing_time": 0.0315,
+          "processing_time": 0.031,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0172,
@@ -551,14 +551,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 7.0,
-          "gpu_avg": 7.0
+          "gpu_peak": 5.0,
+          "gpu_avg": 5.0
         },
         "lexicon_result": {
           "sentiment": "中性",
           "score": 0.0,
           "confidence": 0.387,
-          "processing_time": 0.0321,
+          "processing_time": 0.0296,
           "sentiment_words": [
             {
               "word": "问题",
@@ -586,7 +586,7 @@
           "sentiment": "中性",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0299,
+          "processing_time": 0.031,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -595,14 +595,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 7.0,
-          "gpu_avg": 7.0
+          "gpu_peak": 5.0,
+          "gpu_avg": 5.0
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 5.6,
           "confidence": 0.6992,
-          "processing_time": 0.027,
+          "processing_time": 0.0293,
           "sentiment_words": [
             {
               "word": "推荐",
@@ -630,7 +630,7 @@
           "sentiment": "负面",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0309,
+          "processing_time": 0.0304,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -639,14 +639,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 7.0,
-          "gpu_avg": 7.0
+          "gpu_peak": 5.0,
+          "gpu_avg": 5.0
         },
         "lexicon_result": {
           "sentiment": "负面",
           "score": -7.0,
           "confidence": 0.6979,
-          "processing_time": 0.0244,
+          "processing_time": 0.027,
           "sentiment_words": [
             {
               "word": "故障",
@@ -680,7 +680,7 @@
           "sentiment": "中性",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.031,
+          "processing_time": 0.0327,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -689,14 +689,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 7.0,
-          "gpu_avg": 7.0
+          "gpu_peak": 5.0,
+          "gpu_avg": 5.0
         },
         "lexicon_result": {
           "sentiment": "负面",
           "score": -1.0,
           "confidence": 0.484,
-          "processing_time": 0.0293,
+          "processing_time": 0.03,
           "sentiment_words": [
             {
               "word": "好",
@@ -724,7 +724,7 @@
           "sentiment": "负面",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0318,
+          "processing_time": 0.0329,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -733,14 +733,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 7.0,
-          "gpu_avg": 7.0
+          "gpu_peak": 5.0,
+          "gpu_avg": 5.0
         },
         "lexicon_result": {
           "sentiment": "负面",
           "score": -7.0,
           "confidence": 0.7048,
-          "processing_time": 0.0292,
+          "processing_time": 0.0276,
           "sentiment_words": [
             {
               "word": "质量太差",
@@ -774,7 +774,7 @@
           "sentiment": "中性",
           "score": 0.9998,
           "confidence": 0.9998,
-          "processing_time": 0.0318,
+          "processing_time": 0.0295,
           "sentiment_words": null,
           "scores": {
             "正面": 0.0001,
@@ -783,14 +783,14 @@
           },
           "cpu_peak": 0.0,
           "cpu_avg": 0.0,
-          "gpu_peak": 7.0,
-          "gpu_avg": 7.0
+          "gpu_peak": 5.0,
+          "gpu_avg": 5.0
         },
         "lexicon_result": {
           "sentiment": "中性",
           "score": 0.0,
           "confidence": 0.3,
-          "processing_time": 0.0292,
+          "processing_time": 0.0355,
           "sentiment_words": [],
           "scores": null,
           "cpu_peak": 0.0,

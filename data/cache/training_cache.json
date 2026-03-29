@@ -1,0 +1,62 @@
+{
+  "last_training": {
+    "status": "completed",
+    "completed_at": "2026-03-29T19:50:28.065873",
+    "metrics": {
+      "train_runtime": 259.8985,
+      "train_samples_per_second": 340.645,
+      "train_steps_per_second": 5.333,
+      "total_flos": 2911777526464128.0,
+      "train_loss": 0.11126756023018908,
+      "epoch": 3.0
+    },
+    "history": {
+      "epochs": [
+        1,
+        2,
+        3,
+        3
+      ],
+      "train_loss": [
+        null,
+        null,
+        null,
+        0.11126756023018908
+      ],
+      "eval_loss": [
+        0.019480329006910324,
+        0.01888590306043625,
+        0.02209232933819294,
+        null
+      ],
+      "accuracy": [
+        0.9935975609756098,
+        0.9935975609756098,
+        0.9945121951219512,
+        null
+      ],
+      "f1": [
+        0.9935970421354713,
+        0.9935972677788061,
+        0.9945119014940815,
+        null
+      ],
+      "learning_rate": [
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "gpu_memory_peak_mb": 1592.2,
+    "params": {
+      "epochs": 3,
+      "batch_size": 32,
+      "learning_rate": 2e-05,
+      "max_length": 64,
+      "warmup_ratio": 0.1,
+      "weight_decay": 0.01
+    },
+    "error": null
+  }
+}
