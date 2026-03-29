@@ -13,7 +13,7 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from dataclasses import dataclass, asdict
 import threading
 
@@ -94,7 +94,9 @@ def save_evaluation_cache(
     results: Dict,
     error_samples: Optional[Dict] = None,
     gpu_memory_peak_mb: Optional[float] = None,
-    data_info: Optional[Dict] = None
+    data_info: Optional[Dict] = None,
+    all_predictions: Optional[List] = None,
+    response_times: Optional[Dict] = None
 ):
     with _cache_lock:
         cache_data = {
@@ -103,7 +105,9 @@ def save_evaluation_cache(
                 "results": results,
                 "error_samples": error_samples or {},
                 "gpu_memory_peak_mb": gpu_memory_peak_mb,
-                "data_info": data_info or {}
+                "data_info": data_info or {},
+                "all_predictions": all_predictions or [],
+                "response_times": response_times or {}
             }
         }
         _save_cache(EVALUATION_CACHE_FILE, cache_data)
