@@ -361,6 +361,15 @@ class QuantizationService:
             result.error = f"FP16 量化失败：{str(e)}"
             result.message = "FP16 量化过程发生错误"
             print(f"[量化服务] 错误：{result.error}")
+            
+            # 恢复备份（如果有）
+            backup_dirs = list(self.fp16_model_path.parent.glob("roberta_finetuned_fp16_backup_*"))
+            if backup_dirs:
+                latest_backup = max(backup_dirs, key=lambda x: x.name)
+                if self.fp16_model_path.exists():
+                    shutil.rmtree(self.fp16_model_path)
+                shutil.move(str(latest_backup), str(self.fp16_model_path))
+                print(f"[量化服务] 已恢复备份的 FP16 模型")
         
         return result
     

@@ -215,9 +215,22 @@ class UnifiedModelManager:
             
             # INT8 动态量化模型只能在 CPU 上运行
             int8_device = "cpu"
-            print(f"[模型管理器] INT8 模型使用设备: {int8_device}")
+            print(f"[模型管理器] INT8 模型使用设备：{int8_device}")
             
-            model = torch.load(str(model_file), map_location=int8_device, weights_only=False)
+            # 使用 weights_only=True 提高安全性（PyTorch 1.13+）
+            # 如果失败则回退到 weights_only=False（兼容旧版本）
+            try:
+                model = torch.load(str(model_file), map_location=int8_device, weights_only=True)
+                print("[模型管理器] 使用安全模式加载 INT8 模型 (weights_only=True)")
+            except TypeError:
+                # PyTorch 版本不支持 weights_only 参数
+                model = torch.load(str(model_file), map_location=int8_device, weights_only=False)
+                print("[模型管理器] 使用兼容模式加载 INT8 模型 (weights_only=False)")
+            except Exception as e:
+                # 安全模式加载失败，回退到兼容模式
+                print(f"[模型管理器] 安全模式加载失败：{str(e)}，尝试兼容模式...")
+                model = torch.load(str(model_file), map_location=int8_device, weights_only=False)
+            
             model.eval()
             
             tokenizer = AutoTokenizer.from_pretrained(str(self.int8_model_path))
