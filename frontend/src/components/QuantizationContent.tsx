@@ -185,18 +185,24 @@ const QuantizationContent: React.FC = () => {
         body: JSON.stringify({ mode })
       });
       
+      // 检查 HTTP 状态码
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
-      if (response.ok && data.success) {
-        await fetchGlobalMode();
-      } else {
-        setError(data.detail || '切换失败');
-        alert(data.detail || '切换失败');
+      // 检查业务逻辑是否成功
+      if (!data.success) {
+        throw new Error(data.detail || '切换失败');
       }
+      
+      await fetchGlobalMode();
     } catch (err) {
       console.error('切换失败:', err);
-      setError('网络错误');
-      alert('网络错误');
+      const errorMessage = err instanceof Error ? err.message : '网络错误';
+      setError(errorMessage);
+      alert(errorMessage);
     } finally {
       setSwitching(false);
     }

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useDictionary } from '../hooks/useDictionary';
 import { DICTIONARY_CONFIG, type DictionaryType } from '../types/training';
 import { API_ENDPOINTS } from '../config/api';
+import { dictionaryStatsCache } from '../utils/cache';
+import { handleApiResponse } from '../utils/api';
 
 interface DictionaryStats {
   positive_count: number;
@@ -30,8 +32,8 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
   const [newScore, setNewScore] = useState(2);
   const [syncing, setSyncing] = useState(false);
   const [dictionaryStats, setDictionaryStats] = useState<DictionaryStats | null>(() => {
-    const cached = localStorage.getItem('dictionary_stats_cache');
-    return cached ? JSON.parse(cached) : null;
+    // 使用带过期时间的缓存
+    return dictionaryStatsCache.getCache();
   });
 
   const currentConfig = DICTIONARY_CONFIG[activeDictionary];
@@ -54,11 +56,10 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
         const response = await fetch(`${API_ENDPOINTS.training}/dictionary/stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (response.ok) {
-          const data = await response.json();
-          setDictionaryStats(data);
-          localStorage.setItem('dictionary_stats_cache', JSON.stringify(data));
-        }
+        const data = await handleApiResponse<DictionaryStats>(response);
+        setDictionaryStats(data);
+        // 使用带过期时间的缓存
+        dictionaryStatsCache.setCache(data);
       } catch (error) {
         console.error('加载词典统计失败:', error);
       }

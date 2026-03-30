@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { API_ENDPOINTS } from '../config/api';
+import { dictionaryStatsCache } from '../utils/cache';
+import { handleApiResponse } from '../utils/api';
 
 interface TextAnalysisStats {
   count: number;
@@ -75,8 +77,8 @@ const PerformancePage: React.FC = () => {
   const [stats, setStats] = useState<Statistics | null>(null);
   const [cpuGpuHistory, setCpuGpuHistory] = useState<CpuGpuDataPoint[]>([]);
   const [dictionaryStats, setDictionaryStats] = useState<DictionaryStats | null>(() => {
-    const cached = localStorage.getItem('dictionary_stats_cache');
-    return cached ? JSON.parse(cached) : null;
+    // 使用带过期时间的缓存
+    return dictionaryStatsCache.getCache();
   });
   const [loading, setLoading] = useState(true);
 
@@ -109,7 +111,8 @@ const PerformancePage: React.FC = () => {
       if (dictStatsRes.ok) {
         const dictData = await dictStatsRes.json();
         setDictionaryStats(dictData);
-        localStorage.setItem('dictionary_stats_cache', JSON.stringify(dictData));
+        // 使用带过期时间的缓存
+        dictionaryStatsCache.setCache(dictData);
       }
     } catch (error) {
       console.error('获取性能数据失败:', error);

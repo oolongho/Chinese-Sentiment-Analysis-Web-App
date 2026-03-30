@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { handleApiResponse } from '../utils/api';
 
-// ==================== 类型定义（内联以避免模块导入问题）====================
+// ==================== 类型定义（使用共享类型）====================
 
-type PrecisionMode = 'FP32' | 'INT8';
+// 注意：PrecisionMode 已统一为后端定义的类型
+// 这里为了向后兼容，保留旧的类型定义但映射到新的类型
+type PrecisionMode = 'fp32' | 'fp16' | 'int8';
 
 interface GpuMemoryInfo {
   total_mb: number;
