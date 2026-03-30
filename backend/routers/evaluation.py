@@ -50,7 +50,8 @@ evaluation_status = {
         'lexicon': [],
         'external': []
     },
-    'all_predictions': []
+    'all_predictions': [],
+    'precision_mode': 'FP32'  # 当前评估使用的模型精度模式
 }
 
 
@@ -129,6 +130,11 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
     gpu_memory_peak = 0.0
     
     try:
+        # 获取当前模型分析器的精度模式
+        from sentiment import get_analyzer
+        current_analyzer = get_analyzer()
+        precision_mode = current_analyzer.get_precision()
+        
         lexicon_analyzer.reload()
         
         from services.system_monitor import system_monitor
@@ -145,6 +151,7 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         evaluation_status['gpu_memory'] = {'current_mb': 0, 'peak_mb': 0}
         evaluation_status['response_times'] = {'model': [], 'lexicon': [], 'external': []}
         evaluation_status['all_predictions'] = []
+        evaluation_status['precision_mode'] = precision_mode  # 记录当前精度模式
         
         results = {}
         all_predictions = []
@@ -269,7 +276,8 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
             gpu_memory_peak_mb=gpu_memory_peak,
             data_info={'total': total},
             all_predictions=all_predictions,
-            response_times=evaluation_status['response_times']
+            response_times=evaluation_status['response_times'],
+            precision_mode=precision_mode  # 保存精度模式
         )
         
     except Exception as e:
@@ -352,25 +360,30 @@ async def run_evaluation(include_external: bool = False):
 
 @router.get('/status')
 async def get_evaluation_status():
+    """获取评估状态"""
     return {
         'running': evaluation_status['running'],
         'progress': evaluation_status['progress'],
         'total': evaluation_status['total'],
         'current_analyzer': evaluation_status['current_analyzer'],
         'error': evaluation_status['error'],
-        'gpu_memory': evaluation_status.get('gpu_memory', {'current_mb': 0, 'peak_mb': 0})
+        'gpu_memory': evaluation_status.get('gpu_memory', {'current_mb': 0, 'peak_mb': 0}),
+        'precision_mode': evaluation_status.get('precision_mode', 'FP32')  # 新增精度模式字段
     }
 
 
 @router.get('/results')
 async def get_evaluation_results():
+    """获取评估结果"""
     if evaluation_status['results'] is None:
         return {'success': False, 'message': '暂无评估结果'}
     
     results = evaluation_status['results']
+    precision_mode = evaluation_status.get('precision_mode', 'FP32')
     
     return {
         'success': True,
+        'precision_mode': precision_mode,  # 新增精度模式字段
         'model': {
             'accuracy': results['model']['accuracy'],
             'precision': results['model']['precision'],

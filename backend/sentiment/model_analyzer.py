@@ -1,56 +1,71 @@
-# !/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 深度学习模型推理接口
 功能：
-1. 加载微调后的模型
-2. 实现情感预测接口
+1. 使用统一模型管理器进行推理
+2. 支持全局精度模式切换
+3. 提供模型信息查询接口
 """
 
 import os
-import torch
-from typing import Dict, List, Optional
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from typing import Dict, List, Optional, Literal
 
-MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'models', 'roberta_finetuned')
+from services.unified_model_manager import (
+    unified_model_manager,
+    PrecisionMode
+)
 
 ID_TO_LABEL = {0: '负面', 1: '中性', 2: '正面'}
 LABEL_MAP = {'负面': 0, '中性': 1, '正面': 2}
 
 
 class ModelAnalyzer:
-    """基于深度学习的情感分析器"""
+    """基于深度学习的情感分析器
     
-    def __init__(self, model_path: str = None):
-        self.model = None
-        self.tokenizer = None
-        self.device = None
-        self._load_model(model_path)
+    使用统一模型管理器，支持全局精度模式切换
+    """
     
-    def _load_model(self, model_path: str = None):
-        """加载模型"""
-        if model_path is None:
-            model_path = MODEL_DIR
+    def __init__(self, precision: Literal["FP32", "INT8"] = "FP32"):
+        """初始化模型分析器
         
-        if not os.path.exists(model_path):
-            print(f"警告: 模型路径不存在 {model_path}")
-            print("请先运行 model_trainer.py 训练模型")
-            return
-        
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"加载模型: {model_path}")
-        print(f"使用设备: {self.device}")
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
-        self.model.to(self.device)
-        self.model.eval()
-        
-        print("模型加载完成")
+        Args:
+            precision: 模型精度模式，"FP32" 或 "INT8"，默认 "FP32"
+        """
+        self.precision = precision
     
     def is_loaded(self) -> bool:
         """检查模型是否已加载"""
-        return self.model is not None and self.tokenizer is not None
+        model, tokenizer = unified_model_manager.get_current_model()
+        return model is not None and tokenizer is not None
+    
+    def get_precision(self) -> Literal["FP32", "INT8"]:
+        """获取当前模型的精度模式
+        
+        Returns:
+            当前精度模式："FP32" 或 "INT8"
+        """
+        current_mode = unified_model_manager.get_current_mode()
+        return current_mode.value.upper()
+    
+    def get_model_size(self) -> Optional[float]:
+        """获取模型大小（MB）
+        
+        Returns:
+            模型大小（MB）
+        """
+        status = unified_model_manager.get_status()
+        return status.get('current_model_size_mb', 0.0)
+    
+    def reload(self, precision: Literal["FP32", "INT8"] = None):
+        """重新加载模型，支持切换精度模式
+        
+        Args:
+            precision: 新的精度模式，如果为 None 则保持当前精度
+        """
+        if precision is not None:
+            target_mode = PrecisionMode.FP32 if precision == "FP32" else PrecisionMode.INT8
+            unified_model_manager.switch_mode(target_mode)
     
     def predict(self, text: str) -> Dict:
         """
@@ -62,45 +77,17 @@ class ModelAnalyzer:
         Returns:
             预测结果字典
         """
-        if not self.is_loaded():
+        result = unified_model_manager.predict(text)
+        
+        if 'error' in result and result.get('error'):
             return {
                 'sentiment': '中性',
                 'confidence': 0.5,
                 'scores': {'正面': 0.33, '中性': 0.34, '负面': 0.33},
-                'error': '模型未加载'
+                'error': result['error']
             }
         
-        encoding = self.tokenizer(
-            text,
-            add_special_tokens=True,
-            max_length=128,
-            padding='max_length',
-            truncation=True,
-            return_tensors='pt'
-        )
-        
-        input_ids = encoding['input_ids'].to(self.device)
-        attention_mask = encoding['attention_mask'].to(self.device)
-        
-        with torch.no_grad():
-            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-            probs = torch.softmax(outputs.logits, dim=-1)
-            pred = torch.argmax(probs, dim=-1)
-        
-        pred_label = ID_TO_LABEL[pred.item()]
-        confidence = probs[0][pred.item()].item()
-        
-        scores = {
-            '正面': probs[0][2].item(),
-            '中性': probs[0][1].item(),
-            '负面': probs[0][0].item()
-        }
-        
-        return {
-            'sentiment': pred_label,
-            'confidence': round(confidence, 4),
-            'scores': {k: round(v, 4) for k, v in scores.items()}
-        }
+        return result
     
     def predict_batch(self, texts: List[str]) -> List[Dict]:
         """
@@ -118,21 +105,26 @@ class ModelAnalyzer:
 _analyzer_instance: Optional[ModelAnalyzer] = None
 
 
-def get_analyzer() -> ModelAnalyzer:
-    """获取模型分析器单例"""
+def get_analyzer(precision: Literal["FP32", "INT8"] = "FP32") -> ModelAnalyzer:
+    """获取模型分析器单例
+    
+    Args:
+        precision: 模型精度模式，默认使用全局当前模式
+        
+    Returns:
+        ModelAnalyzer 实例
+    """
     global _analyzer_instance
+    
     if _analyzer_instance is None:
-        _analyzer_instance = ModelAnalyzer()
+        _analyzer_instance = ModelAnalyzer(precision=precision)
+    
     return _analyzer_instance
 
 
 def test_model():
     """测试模型"""
     analyzer = ModelAnalyzer()
-    
-    if not analyzer.is_loaded():
-        print("模型未加载，无法测试")
-        return
     
     test_texts = [
         "这个产品质量很好，物流也很快，非常满意！",

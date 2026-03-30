@@ -13,7 +13,7 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any, List, Literal
 from dataclasses import dataclass, asdict
 import threading
 
@@ -96,8 +96,20 @@ def save_evaluation_cache(
     gpu_memory_peak_mb: Optional[float] = None,
     data_info: Optional[Dict] = None,
     all_predictions: Optional[List] = None,
-    response_times: Optional[Dict] = None
+    response_times: Optional[Dict] = None,
+    precision_mode: Optional[Literal["FP32", "INT8"]] = None
 ):
+    """保存评估结果到缓存
+    
+    Args:
+        results: 评估结果字典
+        error_samples: 错误样本字典
+        gpu_memory_peak_mb: GPU 显存峰值（MB）
+        data_info: 数据信息字典
+        all_predictions: 所有预测结果列表
+        response_times: 响应时间字典
+        precision_mode: 模型精度模式，"FP32" 或 "INT8"，默认 None（向后兼容）
+    """
     with _cache_lock:
         cache_data = {
             "last_evaluation": {
@@ -107,17 +119,28 @@ def save_evaluation_cache(
                 "gpu_memory_peak_mb": gpu_memory_peak_mb,
                 "data_info": data_info or {},
                 "all_predictions": all_predictions or [],
-                "response_times": response_times or {}
+                "response_times": response_times or {},
+                "precision_mode": precision_mode  # 新增精度模式字段
             }
         }
         _save_cache(EVALUATION_CACHE_FILE, cache_data)
-        logger.info("评估缓存已保存")
+        logger.info(f"评估缓存已保存 (precision_mode={precision_mode})")
 
 
 def load_evaluation_cache() -> Optional[Dict]:
+    """加载评估结果缓存
+    
+    Returns:
+        评估结果字典，包含 precision_mode 字段（如果缓存中有）
+        向后兼容：旧的缓存没有 precision_mode 字段也会正常返回
+    """
     with _cache_lock:
         cache = _load_cache(EVALUATION_CACHE_FILE)
-        return cache.get('last_evaluation')
+        result = cache.get('last_evaluation')
+        # 向后兼容：如果缓存中没有 precision_mode 字段，默认为 None
+        if result is not None and 'precision_mode' not in result:
+            result['precision_mode'] = None
+        return result
 
 
 def clear_evaluation_cache():

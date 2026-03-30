@@ -367,10 +367,8 @@ async def remove_dictionary_word(
 
 
 @router.get('/dictionary/stats')
-async def get_dictionary_stats(authorization: Optional[str] = Header(None)):
-    """获取词典统计"""
-    check_auth(authorization)
-    
+async def get_dictionary_stats():
+    """获取词典统计（公开接口，无需认证）"""
     stats = {}
     for dict_type in ['positive', 'negative', 'degree', 'negation']:
         filepath = get_dictionary_filepath(dict_type)
