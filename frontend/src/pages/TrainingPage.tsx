@@ -5,6 +5,7 @@ import AblationStudyTab from '../components/AblationStudyTab';
 import EvaluationTab from '../components/EvaluationTab';
 import ExternalApiTab from '../components/ExternalApiTab';
 import DictionaryTab from '../components/DictionaryTab';
+import QuantizationContent from '../components/QuantizationContent';
 import {
   DICTIONARY_CONFIG,
   type DictionaryType,
@@ -23,7 +24,7 @@ const TrainingPage: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'training' | 'dictionary' | 'external' | 'evaluation' | 'ablation'>('external');
+  const [activeTab, setActiveTab] = useState<'training' | 'dictionary' | 'external' | 'evaluation' | 'ablation' | 'quantization'>('external');
   const [params, setParams] = useState<TrainingParams>({
     epochs: 3,
     batch_size: 16,
@@ -491,32 +492,6 @@ const TrainingPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {(Object.keys(DICTIONARY_CONFIG) as DictionaryType[]).map(type => {
-            const config = DICTIONARY_CONFIG[type];
-            const count = dictionaryStats[`${type}_count` as keyof DictionaryStats];
-            return (
-              <div 
-                key={type}
-                className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-300 cursor-pointer"
-                onClick={() => setActiveTab('dictionary')}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 bg-gradient-to-br ${config.bgClass} rounded-xl flex items-center justify-center`}>
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">{config.name}</p>
-                    <p className="text-2xl font-bold text-gray-900">{count}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
         <div className="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden">
           <div className="flex border-b border-gray-100 flex-wrap">
             <button
@@ -592,6 +567,21 @@ const TrainingPage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                 </svg>
                 消融实验
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('quantization')}
+              className={`flex-1 py-4 px-6 font-semibold transition-all duration-300 ${
+                activeTab === 'quantization'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-400 text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                量化实验
               </div>
             </button>
           </div>
@@ -986,6 +976,8 @@ const TrainingPage: React.FC = () => {
             )}
 
             {activeTab === 'evaluation' && <EvaluationTab />}
+
+            {activeTab === 'quantization' && <QuantizationContent />}
           </div>
         </div>
       </div>

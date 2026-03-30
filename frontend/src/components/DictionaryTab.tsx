@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useDictionary } from '../hooks/useDictionary';
 import { DICTIONARY_CONFIG, type DictionaryType } from '../types/training';
+import { API_ENDPOINTS } from '../config/api';
+
+interface DictionaryStats {
+  positive_count: number;
+  negative_count: number;
+  degree_count: number;
+  negation_count: number;
+}
 
 interface DictionaryTabProps {
   token: string;
@@ -21,6 +29,10 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
   const [newWord, setNewWord] = useState('');
   const [newScore, setNewScore] = useState(2);
   const [syncing, setSyncing] = useState(false);
+  const [dictionaryStats, setDictionaryStats] = useState<DictionaryStats | null>(() => {
+    const cached = localStorage.getItem('dictionary_stats_cache');
+    return cached ? JSON.parse(cached) : null;
+  });
 
   const currentConfig = DICTIONARY_CONFIG[activeDictionary];
   const currentWords = dictionaryWords[activeDictionary];
@@ -34,6 +46,25 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
   useEffect(() => {
     loadDictionary(activeDictionary);
   }, [activeDictionary, loadDictionary]);
+
+  useEffect(() => {
+    // 加载词典统计
+    const fetchDictionaryStats = async () => {
+      try {
+        const response = await fetch(`${API_ENDPOINTS.training}/dictionary/stats`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setDictionaryStats(data);
+          localStorage.setItem('dictionary_stats_cache', JSON.stringify(data));
+        }
+      } catch (error) {
+        console.error('加载词典统计失败:', error);
+      }
+    };
+    fetchDictionaryStats();
+  }, [token]);
 
   useEffect(() => {
     // 根据词典类型设置默认分数
@@ -64,6 +95,54 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
 
   return (
     <div className="space-y-6">
+      {/* 词典统计卡片 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-5 border border-green-100 hover:shadow-lg transition-all duration-300">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-400 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <span className="text-sm font-medium text-gray-600">正面词典</span>
+          </div>
+          <div className="text-3xl font-bold text-gray-900">{dictionaryStats?.positive_count || 0}</div>
+        </div>
+        <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-5 border border-red-100 hover:shadow-lg transition-all duration-300">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-rose-400 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.593a4 4 0 115.656 5.656m-5.656-5.656L15 15" />
+              </svg>
+            </div>
+            <span className="text-sm font-medium text-gray-600">负面词典</span>
+          </div>
+          <div className="text-3xl font-bold text-gray-900">{dictionaryStats?.negative_count || 0}</div>
+        </div>
+        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 border border-blue-100 hover:shadow-lg transition-all duration-300">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <span className="text-sm font-medium text-gray-600">程度副词</span>
+          </div>
+          <div className="text-3xl font-bold text-gray-900">{dictionaryStats?.degree_count || 0}</div>
+        </div>
+        <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl p-5 border border-yellow-100 hover:shadow-lg transition-all duration-300">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-amber-400 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </div>
+            <span className="text-sm font-medium text-gray-600">否定词</span>
+          </div>
+          <div className="text-3xl font-bold text-gray-900">{dictionaryStats?.negation_count || 0}</div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h3 className="text-xl font-bold text-gray-900">词典管理</h3>
         <div className="flex gap-2 flex-wrap items-center">
