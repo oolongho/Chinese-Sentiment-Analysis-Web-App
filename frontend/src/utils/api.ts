@@ -29,10 +29,10 @@ export async function handleApiResponse<T>(response: Response): Promise<T> {
   const data = await response.json();
   
   // 检查业务逻辑是否成功
-  if ('success' in data && !data.success) {
+  if (data && typeof data === 'object' && 'success' in data && !data.success) {
     throw new Error(data.detail || data.message || '操作失败');
   }
-
+  
   return data;
 }
 
