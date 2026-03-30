@@ -19,7 +19,9 @@ from routers import (
     audio_analysis_router,
     performance_router,
     training_router,
-    evaluation_router
+    evaluation_router,
+    quantization_router,
+    hybrid_experiment_router
 )
 
 logger = setup_logger(
@@ -49,6 +51,8 @@ app.include_router(audio_analysis_router)
 app.include_router(performance_router)
 app.include_router(training_router)
 app.include_router(evaluation_router)
+app.include_router(quantization_router)
+app.include_router(hybrid_experiment_router)
 
 
 @app.on_event("startup")
