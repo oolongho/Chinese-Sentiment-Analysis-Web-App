@@ -19,13 +19,14 @@ from typing import Dict, List, Optional
 from collections import Counter
 from io import StringIO
 
-from config import DATA_DIR
+from config import DATA_DIR, MAX_EXCEL_FILE_SIZE
 from sentiment import LexiconAnalyzer, ModelAnalyzer
 from sentiment.hybrid_analyzer import HybridAnalyzer, HybridStrategy
 from services import call_text_api
 from routers.performance import update_model_metrics
 from utils.logger import get_logger
 from utils.auth import get_current_user
+from utils.file_utils import validate_file_size
 
 logger = get_logger('sentiment_analysis')
 
@@ -372,6 +373,10 @@ async def upload_test_data(
     
     try:
         content = await file.read()
+        
+        # 添加文件大小验证
+        validate_file_size(content, MAX_EXCEL_FILE_SIZE, "Excel文件")
+        
         df = pd.read_excel(content)
         
         if '文本' not in df.columns:

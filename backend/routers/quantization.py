@@ -33,6 +33,8 @@ from services.unified_model_manager import (
     PrecisionMode
 )
 from utils.auth import get_current_user
+from utils.file_utils import validate_file_size, cleanup_file
+from config import MAX_EXCEL_FILE_SIZE
 
 
 # ==================== 数据模型 ====================
@@ -355,12 +357,15 @@ async def get_quantization_status():
 # ==================== 测试集管理 API ====================
 
 
-@router.post('/testset/upload', response_model=UploadTestsetResponse, summary="上传测试集")
+@router.post('/testset/upload', response_model=UploadTestsetResponse)
 async def upload_testset(
     file: UploadFile = File(...),
     _: bool = Depends(get_current_user)
 ):
     """上传测试集文件"""
+    file_path = None
+    processed_path = None
+    
     try:
         print(f"[量化 API] 开始上传测试集：{file.filename}")
         
@@ -373,10 +378,14 @@ async def upload_testset(
                 detail=f"不支持的文件格式：{file_ext}。只支持 Excel 文件"
             )
         
+        content = await file.read()
+        
+        # 添加文件大小验证
+        validate_file_size(content, MAX_EXCEL_FILE_SIZE, "Excel文件")
+        
         testset_id = str(uuid.uuid4())[:8]
         file_path = TESTSETS_DIR / f"{testset_id}{file_ext}"
         
-        content = await file.read()
         with open(file_path, 'wb') as f:
             f.write(content)
         
@@ -385,7 +394,6 @@ async def upload_testset(
         try:
             df = pd.read_excel(file_path)
         except Exception as e:
-            file_path.unlink(missing_ok=True)
             raise HTTPException(
                 status_code=400,
                 detail=f"无法读取文件：{str(e)}"
@@ -395,7 +403,6 @@ async def upload_testset(
         actual_columns = set(df.columns)
         
         if not required_columns.issubset(actual_columns):
-            file_path.unlink(missing_ok=True)
             raise HTTPException(
                 status_code=400,
                 detail=f"文件必须包含\"文本\"和\"标签\"两列。当前列：{list(actual_columns)}"
@@ -406,7 +413,6 @@ async def upload_testset(
         
         if not actual_labels.issubset(valid_labels):
             invalid_labels = actual_labels - valid_labels
-            file_path.unlink(missing_ok=True)
             raise HTTPException(
                 status_code=400,
                 detail=f"标签值必须是：正面、负面、中性。发现无效标签：{list(invalid_labels)}"
@@ -435,14 +441,24 @@ async def upload_testset(
         
         return UploadTestsetResponse(
             success=True,
-            message="测试集上传成功",
             testset_id=testset_id,
-            info=TestsetInfo(**testset_info)
+            sample_count=len(df),
+            label_distribution=label_distribution
         )
-        
+    
     except HTTPException:
+        # 清理临时文件
+        if file_path and file_path.exists():
+            cleanup_file(str(file_path))
+        if processed_path and processed_path.exists():
+            cleanup_file(str(processed_path))
         raise
     except Exception as e:
+        # 清理临时文件
+        if file_path and file_path.exists():
+            cleanup_file(str(file_path))
+        if processed_path and processed_path.exists():
+            cleanup_file(str(processed_path))
         print(f"[量化 API] 测试集上传失败：{str(e)}")
         raise HTTPException(status_code=500, detail=f"测试集上传失败：{str(e)}")
 

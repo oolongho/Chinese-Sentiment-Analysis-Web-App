@@ -90,6 +90,11 @@ TRAINING_PARAMS = {
 
 MODEL_NAME = 'hfl/chinese-roberta-wwm-ext'
 
+# 文件上传限制
+MAX_AUDIO_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+MAX_EXCEL_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_AUDIO_DURATION = 300  # 300 秒（5分钟）
+
 
 def _get_cors_origins() -> List[str]:
     """

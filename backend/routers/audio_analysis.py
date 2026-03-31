@@ -14,11 +14,12 @@ from pydantic import BaseModel
 from typing import Optional, Dict, List
 
 from sentiment import get_lexicon_analyzer, get_model_analyzer
-from config import DATA_DIR
+from config import DATA_DIR, MAX_AUDIO_FILE_SIZE, MAX_AUDIO_DURATION
 from services import call_audio_api, call_text_api
 from services.speech_service import speech_service, FUNASR_AVAILABLE
 from services.system_monitor import system_monitor
 from utils.auth import get_current_user
+from utils.file_utils import validate_file_size, cleanup_file
 from routers.logger import get_logger
 
 logger = get_logger('audio_analysis')
@@ -195,10 +196,14 @@ async def upload_audio(file: UploadFile = File(...)):
         logger.warning(f"音频上传请求: 不支持的格式 {ext}")
         raise HTTPException(status_code=400, detail=f'不支持的音频格式，支持: {", ".join(SUPPORTED_FORMATS)}')
     
+    content = await file.read()
+    
+    # 添加文件大小验证
+    validate_file_size(content, MAX_AUDIO_FILE_SIZE, "音频文件")
+    
     filename = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
     
-    content = await file.read()
     with open(filepath, 'wb') as f:
         f.write(content)
     
@@ -218,6 +223,7 @@ async def upload_audio(file: UploadFile = File(...)):
 async def analyze_audio(file: UploadFile = File(...)):
     start_time = time.time()
     gpu_memory_peak = 0.0
+    filepath = None  # 用于异常清理
     
     if not file.filename:
         logger.warning("音频分析请求: 文件名为空")
@@ -228,28 +234,32 @@ async def analyze_audio(file: UploadFile = File(...)):
         logger.warning(f"音频分析请求: 不支持的格式 {ext}")
         raise HTTPException(status_code=400, detail=f'不支持的音频格式，支持: {", ".join(SUPPORTED_FORMATS)}')
     
+    content = await file.read()
+    
+    # 添加文件大小验证
+    validate_file_size(content, MAX_AUDIO_FILE_SIZE, "音频文件")
+    
     filename = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
     
-    content = await file.read()
-    with open(filepath, 'wb') as f:
-        f.write(content)
-    
-    audio_duration = get_audio_duration(filepath)
-    
-    if audio_duration > MAX_AUDIO_DURATION:
-        logger.warning(f"音频时长超过限制: {audio_duration:.1f}s > {MAX_AUDIO_DURATION}s")
-        raise HTTPException(
-            status_code=400, 
-            detail=f'音频时长 {audio_duration:.1f} 秒超过限制（最大 {MAX_AUDIO_DURATION} 秒），请裁剪后重试'
-        )
-    
-    logger.info(f"开始音频分析: {filename}, 时长: {audio_duration:.1f}s")
-    
-    if not FUNASR_AVAILABLE:
-        raise HTTPException(status_code=400, detail='FunASR 库未安装，请运行: pip install funasr modelscope')
-    
     try:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        
+        audio_duration = get_audio_duration(filepath)
+        
+        if audio_duration > MAX_AUDIO_DURATION:
+            logger.warning(f"音频时长超过限制: {audio_duration:.1f}s > {MAX_AUDIO_DURATION}s")
+            raise HTTPException(
+                status_code=400, 
+                detail=f'音频时长 {audio_duration:.1f} 秒超过限制（最大 {MAX_AUDIO_DURATION} 秒），请裁剪后重试'
+            )
+        
+        logger.info(f"开始音频分析: {filename}, 时长: {audio_duration:.1f}s")
+        
+        if not FUNASR_AVAILABLE:
+            raise HTTPException(status_code=400, detail='FunASR 库未安装，请运行: pip install funasr modelscope')
+        
         transcription_result = speech_service.transcribe(filepath)
         transcription = transcription_result.text
         confidence = transcription_result.confidence
@@ -258,84 +268,84 @@ async def analyze_audio(file: UploadFile = File(...)):
         if gpu_info.allocated_mb > gpu_memory_peak:
             gpu_memory_peak = gpu_info.allocated_mb
         
-    except Exception as e:
-        logger.error(f"语音识别失败: {e}")
-        raise HTTPException(status_code=500, detail=f'语音识别失败: {str(e)}')
-    
-    sentences = speech_service.split_into_sentences(transcription)
-    
-    if not sentences:
-        sentences = [transcription] if transcription else []
-    
-    lexicon_analyzer = get_lexicon_analyzer()
-    model_analyzer = get_model_analyzer()
-    
-    sentence_results = []
-    for sentence_text in sentences:
-        if not sentence_text.strip():
-            continue
+        sentences = speech_service.split_into_sentences(transcription)
         
-        lexicon_result = lexicon_analyzer.analyze(sentence_text)
-        model_result = model_analyzer.predict(sentence_text)
+        if not sentences:
+            sentences = [transcription] if transcription else []
         
-        sentence_results.append({
-            'text': sentence_text,
-            'lexicon_result': {
-                'sentiment': lexicon_result['sentiment'],
-                'score': lexicon_result['score'],
-                'confidence': lexicon_result['confidence'],
-                'sentiment_words': lexicon_result.get('sentiment_words', [])
-            },
-            'model_result': {
-                'sentiment': model_result['sentiment'],
-                'confidence': model_result['confidence'],
-                'scores': model_result['scores']
+        lexicon_analyzer = get_lexicon_analyzer()
+        model_analyzer = get_model_analyzer()
+        
+        sentence_results = []
+        for sentence_text in sentences:
+            if not sentence_text.strip():
+                continue
+            
+            lexicon_result = lexicon_analyzer.analyze(sentence_text)
+            model_result = model_analyzer.predict(sentence_text)
+            
+            sentence_results.append({
+                'text': sentence_text,
+                'lexicon_result': {
+                    'sentiment': lexicon_result['sentiment'],
+                    'score': lexicon_result['score'],
+                    'confidence': lexicon_result['confidence'],
+                    'sentiment_words': lexicon_result.get('sentiment_words', [])
+                },
+                'model_result': {
+                    'sentiment': model_result['sentiment'],
+                    'confidence': model_result['confidence'],
+                    'scores': model_result['scores']
+                }
+            })
+            
+            gpu_info = system_monitor.get_gpu_memory_info()
+            if gpu_info.allocated_mb > gpu_memory_peak:
+                gpu_memory_peak = gpu_info.allocated_mb
+        
+        overall_sentiment = calculate_weighted_sentiment(sentence_results)
+        
+        processing_time = time.time() - start_time
+        
+        logger.info(f"音频分析完成: {len(sentence_results)} 句, 整体情感: {overall_sentiment['sentiment']}")
+        
+        from services.cache_service import save_audio_analysis_cache
+        save_audio_analysis_cache(
+            transcription=transcription,
+            sentences=sentence_results,
+            overall_sentiment=overall_sentiment,
+            audio_duration=audio_duration,
+            gpu_memory_peak_mb=gpu_memory_peak
+        )
+        
+        return AudioAnalysisResponse(
+            transcription=transcription,
+            sentences=[SentenceResult(**s) for s in sentence_results],
+            overall_sentiment=overall_sentiment,
+            confidence=confidence,
+            processing_time=round(processing_time, 4),
+            audio_duration=round(audio_duration, 1),
+            gpu_memory={
+                'current_mb': round(gpu_info.allocated_mb, 1),
+                'peak_mb': round(gpu_memory_peak, 1)
             }
-        })
-        
-        gpu_info = system_monitor.get_gpu_memory_info()
-        if gpu_info.allocated_mb > gpu_memory_peak:
-            gpu_memory_peak = gpu_info.allocated_mb
+        )
     
-    overall_sentiment = calculate_weighted_sentiment(sentence_results)
-    
-    processing_time = time.time() - start_time
-    
-    logger.info(f"音频分析完成: {len(sentence_results)} 句, 整体情感: {overall_sentiment['sentiment']}")
-    
-    try:
-        if os.path.exists(filepath):
-            os.remove(filepath)
-            logger.debug(f"已清理临时文件: {filename}")
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"清理临时文件失败: {e}")
-    
-    from services.cache_service import save_audio_analysis_cache
-    save_audio_analysis_cache(
-        transcription=transcription,
-        sentences=sentence_results,
-        overall_sentiment=overall_sentiment,
-        audio_duration=audio_duration,
-        gpu_memory_peak_mb=gpu_memory_peak
-    )
-    
-    return AudioAnalysisResponse(
-        transcription=transcription,
-        sentences=[SentenceResult(**s) for s in sentence_results],
-        overall_sentiment=overall_sentiment,
-        confidence=confidence,
-        processing_time=round(processing_time, 4),
-        audio_duration=round(audio_duration, 1),
-        gpu_memory={
-            'current_mb': round(gpu_info.allocated_mb, 1),
-            'peak_mb': round(gpu_memory_peak, 1)
-        }
-    )
+        logger.error(f"音频分析失败: {e}")
+        raise HTTPException(status_code=500, detail=f'音频分析失败: {str(e)}')
+    finally:
+        # 清理临时文件
+        if filepath:
+            cleanup_file(filepath)
 
 
 @router.post('/analyze/external', response_model=ExternalAudioAnalysisResponse)
 async def analyze_audio_external(file: UploadFile = File(...)):
     start_time = time.time()
+    filepath = None  # 用于异常清理
     
     if not file.filename:
         logger.warning("外部API音频分析请求: 文件名为空")
@@ -346,53 +356,68 @@ async def analyze_audio_external(file: UploadFile = File(...)):
         logger.warning(f"外部API音频分析请求: 不支持的格式 {ext}")
         raise HTTPException(status_code=400, detail=f'不支持的音频格式，支持: {", ".join(SUPPORTED_FORMATS)}')
     
+    content = await file.read()
+    
+    # 添加文件大小验证
+    validate_file_size(content, MAX_AUDIO_FILE_SIZE, "音频文件")
+    
     filename = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
     
-    content = await file.read()
-    with open(filepath, 'wb') as f:
-        f.write(content)
-    
-    logger.info(f"开始外部API音频分析: {filename}")
-    
-    audio_result = await call_audio_api(filepath)
-    
-    if not audio_result.get('success'):
+    try:
+        with open(filepath, 'wb') as f:
+            f.write(content)
+        
+        logger.info(f"开始外部API音频分析: {filename}")
+        
+        audio_result = await call_audio_api(filepath)
+        
+        if not audio_result.get('success'):
+            processing_time = time.time() - start_time
+            logger.warning(f"外部API音频分析失败: {audio_result.get('error')}")
+            return ExternalAudioAnalysisResponse(
+                success=False,
+                processing_time=round(processing_time, 4),
+                error=audio_result.get('error', '语音识别失败')
+            )
+        
+        transcription = audio_result.get('transcription', '')
+        audio_model = audio_result.get('model', '')
+        
+        text_result = await call_text_api(transcription)
+        
         processing_time = time.time() - start_time
-        logger.warning(f"外部API音频分析失败: {audio_result.get('error')}")
+        
+        if not text_result.get('success'):
+            logger.warning(f"外部API文本分析失败: {text_result.get('error')}")
+            return ExternalAudioAnalysisResponse(
+                success=False,
+                transcription=transcription,
+                processing_time=round(processing_time, 4),
+                error=text_result.get('error', '情感分析失败')
+            )
+        
+        logger.info(f"外部API音频分析完成: {text_result.get('sentiment')}")
+        
         return ExternalAudioAnalysisResponse(
-            success=False,
-            processing_time=round(processing_time, 4),
-            error=audio_result.get('error', '语音识别失败')
-        )
-    
-    transcription = audio_result.get('transcription', '')
-    audio_model = audio_result.get('model', '')
-    
-    text_result = await call_text_api(transcription)
-    
-    processing_time = time.time() - start_time
-    
-    if not text_result.get('success'):
-        logger.warning(f"外部API文本分析失败: {text_result.get('error')}")
-        return ExternalAudioAnalysisResponse(
-            success=False,
+            success=True,
             transcription=transcription,
-            processing_time=round(processing_time, 4),
-            error=text_result.get('error', '情感分析失败')
+            sentiment=text_result.get('sentiment'),
+            confidence=text_result.get('confidence'),
+            reasoning=text_result.get('reasoning'),
+            model=f"{audio_model} + {text_result.get('model', '')}",
+            processing_time=round(processing_time, 4)
         )
     
-    logger.info(f"外部API音频分析完成: {text_result.get('sentiment')}")
-    
-    return ExternalAudioAnalysisResponse(
-        success=True,
-        transcription=transcription,
-        sentiment=text_result.get('sentiment'),
-        confidence=text_result.get('confidence'),
-        reasoning=text_result.get('reasoning'),
-        model=f"{audio_model} + {text_result.get('model', '')}",
-        processing_time=round(processing_time, 4)
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"外部API音频分析失败: {e}")
+        raise HTTPException(status_code=500, detail=f'分析失败: {str(e)}')
+    finally:
+        # 清理临时文件
+        if filepath:
+            cleanup_file(filepath)
 
 
 @router.get('/cached-result')
