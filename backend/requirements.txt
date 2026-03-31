@@ -11,3 +11,8 @@ PyJWT
 accelerate
 pynvml
 psutil
+httpx
+numpy
+scikit-learn
+matplotlib
+pydub
