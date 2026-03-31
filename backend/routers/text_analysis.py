@@ -30,7 +30,7 @@ _hybrid_analyzer_instance: Optional[HybridAnalyzer] = None
 
 def get_hybrid_analyzer(strategy: HybridStrategy = HybridStrategy.CASCADE) -> HybridAnalyzer:
     """
-    获取混合分析器单例实例
+    获取混合分析器实例（根据策略创建或更新）
     
     Args:
         strategy: 混合策略
@@ -40,8 +40,11 @@ def get_hybrid_analyzer(strategy: HybridStrategy = HybridStrategy.CASCADE) -> Hy
     """
     global _hybrid_analyzer_instance
     if _hybrid_analyzer_instance is None:
-        logger.info("初始化混合分析器单例")
+        logger.info(f"初始化混合分析器，策略：{strategy.value}")
         _hybrid_analyzer_instance = HybridAnalyzer(strategy=strategy)
+    elif _hybrid_analyzer_instance.strategy != strategy:
+        logger.info(f"更新混合分析器策略：{_hybrid_analyzer_instance.strategy.value} -> {strategy.value}")
+        _hybrid_analyzer_instance.strategy = strategy
     return _hybrid_analyzer_instance
 
 
@@ -267,6 +270,16 @@ async def analyze_model(request: TextRequest):
 def _analyze_hybrid_sync(text: str, strategy: HybridStrategy, config: Optional[Dict] = None) -> dict:
     """同步执行混合分析"""
     hybrid_analyzer = get_hybrid_analyzer(strategy=strategy)
+    
+    # 如果提供了配置，更新分析器的配置
+    if config:
+        if 'lexicon_threshold' in config:
+            hybrid_analyzer.config['lexicon_threshold'] = config['lexicon_threshold']
+        if 'lexicon_score_threshold' in config:
+            hybrid_analyzer.config['lexicon_score_threshold'] = config['lexicon_score_threshold']
+        if 'roberta_weight' in config:
+            hybrid_analyzer.config['roberta_weight'] = config['roberta_weight']
+    
     return hybrid_analyzer.predict(text)
 
 
