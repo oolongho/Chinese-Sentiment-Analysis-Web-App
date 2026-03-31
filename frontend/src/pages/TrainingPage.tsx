@@ -450,7 +450,7 @@ const TrainingPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">管理平台</h1>
-              <p className="text-gray-500">管理模型训练、情感词典和外部API</p>
+              <p className="text-gray-500">模型训练、情感词典、外部API、评估、消融实验、量化</p>
             </div>
           </div>
           
