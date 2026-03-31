@@ -127,7 +127,28 @@ source venv/bin/activate  # Linux/Mac
 cd backend
 pip install -r requirements.txt
 cd ..
+```
 
+### 环境变量配置
+
+在 `backend/` 目录下创建 `.env` 文件：
+
+```bash
+# 必需：管理员密码（二选一）
+ADMIN_PASSWORD=your_secure_password
+# 或直接配置哈希值（推荐）
+# ADMIN_PASSWORD_HASH=<sha256_hash>
+
+# 必需：JWT 密钥（请使用安全的随机字符串）
+SECRET_KEY=your_random_secret_key_here
+
+# 可选：CORS 允许的来源（多个用逗号分隔）
+# CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+```
+
+### 启动服务
+
+```bash
 # 启动后端服务
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
@@ -203,9 +224,10 @@ Excel 文件（.xlsx）需要包含以下列：
 
 在管理平台配置外部 API（如 OpenAI、DeepSeek、通义千问等）：
 
-1. 登录管理平台（默认密码：`123456`）
-2. 进入"外部 API"标签
-3. 填写 API Key、Base URL、模型名称
+1. 配置环境变量中的管理员密码（见上方"环境变量配置"）
+2. 登录管理平台
+3. 进入"外部 API"标签
+4. 填写 API Key、Base URL、模型名称
 
 ### 支持的 API 格式
 
