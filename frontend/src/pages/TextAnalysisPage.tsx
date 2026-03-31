@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
 
 interface AnalysisResult {
   text: string;
+  modelType: 'hybrid' | 'batch';
+  hybridStats?: {
+    fastPathRatio: number;
+    totalSamples: number;
+    fastPathSamples: number;
+  };
   models: {
     deepLearning: {
       sentiment: string;
@@ -43,15 +49,22 @@ const TextAnalysisPage: React.FC = () => {
   const [resultsList, setResultsList] = useState<AnalysisResult[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [error, setError] = useState('');
-  const [externalApiConfigured, setExternalApiConfigured] = useState(false);
   const [textApiEnabled, setTextApiEnabled] = useState(false);
   const [cachedResult, setCachedResult] = useState<any>(null);
   const [isFromCache, setIsFromCache] = useState(false);
+  const [useHybridMode, setUseHybridMode] = useState(() => {
+    const saved = localStorage.getItem('useHybridMode');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   useEffect(() => {
     checkExternalApi();
     loadCachedResult();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('useHybridMode', JSON.stringify(useHybridMode));
+  }, [useHybridMode]);
 
   const loadCachedResult = async () => {
     try {
@@ -125,7 +138,6 @@ const TextAnalysisPage: React.FC = () => {
         });
         if (response.ok) {
           const data = await response.json();
-          setExternalApiConfigured(data.text_configured);
           setTextApiEnabled(data.text_enabled || false);
         }
       }
@@ -147,69 +159,110 @@ const TextAnalysisPage: React.FC = () => {
     setIsFromCache(false);
     
     try {
-      const [localResponse, externalResponse] = await Promise.all([
-        fetch(`${API_ENDPOINTS.text}/analyze/batch`, {
+      let localData;
+      
+      if (useHybridMode) {
+        // 混合模式：逐条调用混合分析 API
+        const hybridResults = await Promise.all(
+          textLines.map(text => 
+            fetch(`${API_BASE_URL}/api/text/analyze/hybrid`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text })
+            }).then(res => res.json())
+          )
+        );
+        
+        localData = {
+          results: hybridResults,
+          hybrid_stats: hybridResults[0]?.hybrid_stats || null
+        };
+      } else {
+        // 普通模式：批量调用
+        const response = await fetch(`${API_ENDPOINTS.text}/analyze/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ texts: textLines })
-        }),
-        externalApiConfigured ? fetch(`${API_ENDPOINTS.text}/analyze/external/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ texts: textLines })
-        }) : null
-      ]);
-      
-      if (!localResponse.ok) {
-        throw new Error('分析请求失败');
-      }
-      
-      const localData = await localResponse.json();
-      let externalDataResults: any[] = [];
-      
-      if (externalResponse && externalResponse.ok) {
-        const externalJson = await externalResponse.json();
-        externalDataResults = externalJson.results || [];
-      }
-      
-      const results: AnalysisResult[] = localData.results.map((item: any, index: number) => ({
-        text: textLines[index],
-        models: {
-          deepLearning: {
-            sentiment: item.model_result.sentiment === '正面' ? 'positive' : 
-                       item.model_result.sentiment === '负面' ? 'negative' : 'neutral',
-            confidence: item.model_result.confidence,
-            analysisTime: item.model_result.processing_time,
-            scores: item.model_result.scores,
-            cpuPeak: item.model_result.cpu_peak || 0,
-            cpuAvg: item.model_result.cpu_avg || 0,
-            gpuPeak: item.model_result.gpu_peak,
-            gpuAvg: item.model_result.gpu_avg
-          },
-          lexicon: {
-            sentiment: item.lexicon_result.sentiment === '正面' ? 'positive' : 
-                       item.lexicon_result.sentiment === '负面' ? 'negative' : 'neutral',
-            confidence: item.lexicon_result.confidence,
-            analysisTime: item.lexicon_result.processing_time,
-            score: item.lexicon_result.score,
-            sentimentWords: item.lexicon_result.sentiment_words || [],
-            cpuPeak: item.lexicon_result.cpu_peak || 0,
-            cpuAvg: item.lexicon_result.cpu_avg || 0,
-            gpuPeak: item.lexicon_result.gpu_peak,
-            gpuAvg: item.lexicon_result.gpu_avg
-          },
-          external: externalDataResults[index] ? {
-            success: externalDataResults[index].success,
-            sentiment: externalDataResults[index].sentiment === '正面' ? 'positive' : 
-                       externalDataResults[index].sentiment === '负面' ? 'negative' : 'neutral',
-            confidence: externalDataResults[index].confidence,
-            reasoning: externalDataResults[index].reasoning,
-            model: externalDataResults[index].model,
-            analysisTime: externalDataResults[index].processing_time,
-            error: externalDataResults[index].error
-          } : null
+        });
+        
+        if (!response.ok) {
+          throw new Error('分析请求失败');
         }
-      }));
+        localData = await response.json();
+      }
+      
+      const results: AnalysisResult[] = localData.results.map((item: any, index: number) => {
+        if (useHybridMode) {
+          // 混合模式结果映射
+          return {
+            text: textLines[index],
+            modelType: 'hybrid',
+            hybridStats: localData.hybrid_stats ? {
+              fastPathRatio: localData.hybrid_stats.fast_path_ratio || 0,
+              totalSamples: localData.hybrid_stats.total_samples || 0,
+              fastPathSamples: localData.hybrid_stats.fast_path_samples || 0
+            } : undefined,
+            models: {
+              deepLearning: {
+                sentiment: item.roberta_result?.sentiment === '正面' ? 'positive' : 
+                           item.roberta_result?.sentiment === '负面' ? 'negative' : 'neutral',
+                confidence: item.roberta_result?.confidence || 0,
+                analysisTime: item.roberta_result?.processing_time || 0,
+                scores: item.roberta_result?.scores || {},
+                cpuPeak: 0,
+                cpuAvg: 0,
+                gpuPeak: 0,
+                gpuAvg: 0
+              },
+              lexicon: {
+                sentiment: item.lexicon_result?.sentiment === '正面' ? 'positive' : 
+                           item.lexicon_result?.sentiment === '负面' ? 'negative' : 'neutral',
+                confidence: item.lexicon_result?.confidence || 0,
+                analysisTime: item.lexicon_result?.processing_time || 0,
+                score: item.lexicon_result?.score || 0,
+                sentimentWords: item.lexicon_result?.sentiment_words || [],
+                cpuPeak: 0,
+                cpuAvg: 0,
+                gpuPeak: 0,
+                gpuAvg: 0
+              },
+              external: null
+            }
+          };
+        } else {
+          // 普通模式结果映射
+          return {
+            text: textLines[index],
+            modelType: 'batch',
+            models: {
+              deepLearning: {
+                sentiment: item.model_result.sentiment === '正面' ? 'positive' : 
+                           item.model_result.sentiment === '负面' ? 'negative' : 'neutral',
+                confidence: item.model_result.confidence,
+                analysisTime: item.model_result.processing_time,
+                scores: item.model_result.scores,
+                cpuPeak: item.model_result.cpu_peak || 0,
+                cpuAvg: item.model_result.cpu_avg || 0,
+                gpuPeak: item.model_result.gpu_peak,
+                gpuAvg: item.model_result.gpu_avg
+              },
+              lexicon: {
+                sentiment: item.lexicon_result.sentiment === '正面' ? 'positive' : 
+                           item.lexicon_result.sentiment === '负面' ? 'negative' : 'neutral',
+                confidence: item.lexicon_result.confidence,
+                analysisTime: item.lexicon_result.processing_time,
+                score: item.lexicon_result.score,
+                sentimentWords: item.lexicon_result.sentiment_words || [],
+                cpuPeak: item.lexicon_result.cpu_peak || 0,
+                cpuAvg: item.lexicon_result.cpu_avg || 0,
+                gpuPeak: item.lexicon_result.gpu_peak,
+                gpuAvg: item.lexicon_result.gpu_avg
+              },
+              external: null
+            }
+          };
+        }
+      });
       
       setResultsList(results);
     } catch (err: any) {
@@ -493,32 +546,63 @@ const TextAnalysisPage: React.FC = () => {
             </div>
           )}
 
-          <div className="flex justify-center">
-            <button
-              onClick={handleAnalyze}
-              disabled={loading || lineCount === 0}
-              className="group px-10 py-4 bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-semibold rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-1 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-lg flex items-center gap-3"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleAnalyze}
+                disabled={loading || lineCount === 0}
+                className="group px-10 py-4 bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-semibold rounded-2xl transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-1 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-lg flex items-center gap-3"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    分析中...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    开始分析 ({lineCount} 条)
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* 混合模式开关 */}
+            <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-pink-50 px-5 py-3 rounded-xl border border-purple-100">
+              <div className="flex flex-col">
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
-                  分析中...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                  开始分析 ({lineCount} 条)
-                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </>
-              )}
-            </button>
+                  混合分析模式
+                </label>
+                <span className="text-xs text-gray-500">
+                  {useHybridMode ? '使用混合融合模型（更快）' : '使用词典快速模型'}
+                </span>
+              </div>
+              <button
+                onClick={() => setUseHybridMode(!useHybridMode)}
+                className={`relative w-14 h-7 rounded-full transition-all duration-300 ${
+                  useHybridMode 
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-400' 
+                    : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
+                    useHybridMode ? 'translate-x-7' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -588,11 +672,64 @@ const TextAnalysisPage: React.FC = () => {
                   </div>
                   <h2 className="text-xl font-bold text-gray-900">文本 #{currentPage + 1}</h2>
                 </div>
-                <div className="px-3 py-1 bg-blue-50 rounded-full text-blue-600 text-sm font-medium">
-                  共 {resultsList.length} 条结果
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-blue-50 rounded-full text-blue-600 text-sm font-medium">
+                    共 {resultsList.length} 条结果
+                  </span>
+                  {/* 方法标签 Badge */}
+                  {currentResult.modelType === 'hybrid' ? (
+                    <span className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-400 text-white text-sm font-semibold rounded-full flex items-center gap-1 shadow-md">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      混合融合
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-400 text-white text-sm font-semibold rounded-full flex items-center gap-1 shadow-md">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      词典快速
+                    </span>
+                  )}
                 </div>
               </div>
               
+              {/* 混合模式统计信息 */}
+              {currentResult.modelType === 'hybrid' && currentResult.hybridStats && (
+                <div className="mb-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                        <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">混合分析统计</h3>
+                        <p className="text-xs text-gray-500">快速路径处理比例</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-purple-600">
+                          {(currentResult.hybridStats.fastPathRatio * 100).toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {currentResult.hybridStats.fastPathSamples} / {currentResult.hybridStats.totalSamples} 样本
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-purple-500 to-pink-400 h-2.5 rounded-full transition-all duration-1000 ease-out"
+                      style={{ width: `${currentResult.hybridStats.fastPathRatio * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 mb-4">
                 <button
                   onClick={exportResults}
