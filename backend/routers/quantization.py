@@ -447,20 +447,16 @@ async def upload_testset(
         )
     
     except HTTPException:
-        # 清理临时文件
-        if file_path and file_path.exists():
-            cleanup_file(str(file_path))
-        if processed_path and processed_path.exists():
-            cleanup_file(str(processed_path))
         raise
     except Exception as e:
-        # 清理临时文件
+        print(f"[量化 API] 测试集上传失败：{str(e)}")
+        raise HTTPException(status_code=500, detail=f"测试集上传失败：{str(e)}")
+    finally:
+        # 统一清理临时文件
         if file_path and file_path.exists():
             cleanup_file(str(file_path))
         if processed_path and processed_path.exists():
             cleanup_file(str(processed_path))
-        print(f"[量化 API] 测试集上传失败：{str(e)}")
-        raise HTTPException(status_code=500, detail=f"测试集上传失败：{str(e)}")
 
 
 @router.get('/testset/list', summary="获取已上传的测试集列表")
