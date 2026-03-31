@@ -8,26 +8,14 @@ interface CacheData<T> {
   timestamp: number;
 }
 
-/**
- * 缓存配置
- */
 interface CacheConfig {
   key: string;
-  expiryMs: number; // 过期时间（毫秒）
+  expiryMs: number;
 }
 
-/**
- * 创建带过期时间的缓存 Hook
- * @param config 缓存配置
- * @returns 缓存读写方法
- */
 export function createCache<T>(config: CacheConfig) {
   const { key, expiryMs } = config;
 
-  /**
-   * 获取缓存数据
-   * @returns 如果缓存有效则返回数据，否则返回 null
-   */
   const getCache = (): T | null => {
     try {
       const cached = localStorage.getItem(key);
@@ -38,9 +26,7 @@ export function createCache<T>(config: CacheConfig) {
       const { data, timestamp }: CacheData<T> = JSON.parse(cached);
       const now = Date.now();
 
-      // 检查是否过期
       if (now - timestamp >= expiryMs) {
-        // 缓存已过期，删除
         localStorage.removeItem(key);
         return null;
       }
@@ -52,10 +38,6 @@ export function createCache<T>(config: CacheConfig) {
     }
   };
 
-  /**
-   * 设置缓存
-   * @param data 要缓存的数据
-   */
   const setCache = (data: T): void => {
     try {
       const cacheData: CacheData<T> = {
@@ -68,9 +50,6 @@ export function createCache<T>(config: CacheConfig) {
     }
   };
 
-  /**
-   * 清除缓存
-   */
   const clearCache = (): void => {
     try {
       localStorage.removeItem(key);
@@ -79,10 +58,6 @@ export function createCache<T>(config: CacheConfig) {
     }
   };
 
-  /**
-   * 检查缓存是否有效
-   * @returns 缓存是否有效
-   */
   const isValid = (): boolean => {
     return getCache() !== null;
   };
@@ -95,15 +70,16 @@ export function createCache<T>(config: CacheConfig) {
   };
 }
 
-/**
- * 词典统计缓存配置
- */
 export const DICTIONARY_STATS_CACHE = {
   key: 'dictionary_stats_cache',
-  expiryMs: 5 * 60 * 1000, // 5 分钟
+  expiryMs: 5 * 60 * 1000,
 };
 
-/**
- * 词典统计缓存实例
- */
-export const dictionaryStatsCache = createCache<Record<string, number>>(DICTIONARY_STATS_CACHE);
+interface DictionaryStats {
+  positive_count: number;
+  negative_count: number;
+  degree_count: number;
+  negation_count: number;
+}
+
+export const dictionaryStatsCache = createCache<DictionaryStats>(DICTIONARY_STATS_CACHE);

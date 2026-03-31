@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../config/api';
-import { handleApiResponse } from '../utils/api';
 
 // ==================== 类型定义（使用共享类型）====================
 
@@ -25,16 +24,6 @@ interface QuantizationStatus {
   quantization_completed: boolean;
   quantization_time: number;
   last_error: string;
-}
-
-interface QuantizationResult {
-  success: boolean;
-  original_size_mb: number;
-  quantized_size_mb: number;
-  size_reduction_percent: number;
-  quantization_time: number;
-  message: string;
-  error?: string;
 }
 
 interface ModelComparison {
@@ -66,14 +55,9 @@ interface QuantizationTabProps {
 }
 
 const QuantizationTab: React.FC<QuantizationTabProps> = ({ token }) => {
-  // 量化状态
   const [quantStatus, setQuantStatus] = useState<QuantizationStatus | null>(null);
   const [gpuMemory, setGpuMemory] = useState<GpuMemoryInfo | null>(null);
   
-  // 量化结果
-  const [quantResult, setQuantResult] = useState<QuantizationResult | null>(null);
-  
-  // 对比结果
   const [comparison, setComparison] = useState<ModelComparison | null>(null);
   
   // 加载状态
@@ -162,7 +146,6 @@ const QuantizationTab: React.FC<QuantizationTabProps> = ({ token }) => {
       const data = await response.json();
       
       if (response.ok && data.success) {
-        setQuantResult(data);
         await fetchQuantizationStatus();
         alert('量化成功！');
       } else {

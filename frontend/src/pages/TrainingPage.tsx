@@ -7,14 +7,11 @@ import ExternalApiTab from '../components/ExternalApiTab';
 import DictionaryTab from '../components/DictionaryTab';
 import QuantizationContent from '../components/QuantizationContent';
 import {
-  DICTIONARY_CONFIG,
-  type DictionaryType,
   type TrainingParams,
   type TrainingStatus,
   type TrainingHistory,
   type CachedTrainingResult,
-  type UploadedData,
-  type DictionaryStats
+  type UploadedData
 } from '../types/training';
 
 const TrainingPage: React.FC = () => {
@@ -34,15 +31,6 @@ const TrainingPage: React.FC = () => {
     weight_decay: 0.01
   });
   
-
-  
-  const [dictionaryStats, setDictionaryStats] = useState<DictionaryStats>({
-    positive_count: 0,
-    negative_count: 0,
-    degree_count: 0,
-    negation_count: 0
-  });
-
   const [uploadedData, setUploadedData] = useState<UploadedData>({ uploaded: false, count: 0 });
   const [trainingStatus, setTrainingStatus] = useState<TrainingStatus>({
     status: 'idle',
@@ -189,7 +177,6 @@ const TrainingPage: React.FC = () => {
 
   const loadData = async (authToken: string) => {
     loadParams(authToken);
-    loadDictionaryStats(authToken);
     loadUploadedData(authToken);
     loadTrainingStatus(authToken);
     loadCachedTrainingResult(authToken);
@@ -225,20 +212,6 @@ const TrainingPage: React.FC = () => {
       }
     } catch (error) {
       console.error('加载参数失败:', error);
-    }
-  };
-
-  const loadDictionaryStats = async (authToken: string) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/stats`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDictionaryStats(data);
-      }
-    } catch (error) {
-      console.error('加载词典统计失败:', error);
     }
   };
 
