@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import { API_ENDPOINTS } from '../config/api';
 
 interface AnalysisResult {
   text: string;
@@ -165,7 +165,7 @@ const TextAnalysisPage: React.FC = () => {
         // 混合模式：逐条调用混合分析 API
         const hybridResults = await Promise.all(
           textLines.map(text => 
-            fetch(`${API_BASE_URL}/api/text/analyze/hybrid`, {
+            fetch(`${API_ENDPOINTS.text}/analyze/hybrid`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ text })

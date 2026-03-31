@@ -174,23 +174,28 @@ class HybridAnalyzer:
         lexicon_conf = lexicon_result.get('confidence', 0.5)
         roberta_conf = roberta_result.get('confidence', 0.5)
         
-        # 归一化权重
+        # 应用配置权重和置信度计算最终权重
+        # 配置权重表示对模型的偏好，置信度表示模型对结果的确定性
+        lexicon_base = (1 - self.config['roberta_weight'])
+        roberta_base = self.config['roberta_weight']
+        
+        # 结合置信度调整权重
         total_conf = lexicon_conf + roberta_conf
         if total_conf > 0:
-            lexicon_weight = lexicon_conf / total_conf
-            roberta_weight = roberta_conf / total_conf
+            lexicon_weight = (lexicon_conf * lexicon_base) / total_conf
+            roberta_weight = (roberta_conf * roberta_base) / total_conf
+        else:
+            lexicon_weight = lexicon_base
+            roberta_weight = roberta_base
+        
+        # 归一化确保权重和为1
+        total_weight = lexicon_weight + roberta_weight
+        if total_weight > 0:
+            lexicon_weight /= total_weight
+            roberta_weight /= total_weight
         else:
             lexicon_weight = 0.5
             roberta_weight = 0.5
-        
-        # 应用配置的权重偏移
-        roberta_weight *= self.config['roberta_weight']
-        lexicon_weight *= (1 - self.config['roberta_weight'])
-        
-        # 归一化
-        total_weight = lexicon_weight + roberta_weight
-        lexicon_weight /= total_weight
-        roberta_weight /= total_weight
         
         # 融合置信度
         final_confidence = (lexicon_conf * lexicon_weight + roberta_conf * roberta_weight)
