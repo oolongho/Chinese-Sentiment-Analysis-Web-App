@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { API_ENDPOINTS } from '../config/api';
 import { dictionaryStatsCache } from '../utils/cache';
-import { handleApiResponse } from '../utils/api';
 
 interface TextAnalysisStats {
   count: number;
