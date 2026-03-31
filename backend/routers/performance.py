@@ -12,12 +12,13 @@ import os
 import json
 import logging
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
 from config import DATA_DIR
 from services.system_monitor import system_monitor
+from utils.auth import get_current_user
 
 logger = logging.getLogger('performance')
 
@@ -298,7 +299,8 @@ async def update_metrics_endpoint(analyzer_type: str, metrics: Dict):
 
 
 @router.post('/reset')
-async def reset_statistics():
+async def reset_statistics(_: bool = Depends(get_current_user)):
+    """重置所有统计数据"""
     default_stats = _default_stats()
     save_stats(default_stats)
     system_monitor.clear_history()

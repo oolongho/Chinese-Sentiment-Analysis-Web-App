@@ -13,7 +13,7 @@ import asyncio
 import threading
 import time
 import pandas as pd
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 from collections import Counter
@@ -21,13 +21,19 @@ from io import StringIO
 
 from config import DATA_DIR
 from sentiment import LexiconAnalyzer, ModelAnalyzer
+from sentiment.hybrid_analyzer import HybridAnalyzer, HybridStrategy
 from services import call_text_api
 from routers.performance import update_model_metrics
+from utils.logger import get_logger
+from utils.auth import get_current_user
+
+logger = get_logger('sentiment_analysis')
 
 router = APIRouter(prefix='/api/evaluation', tags=['模型评估'])
 
 lexicon_analyzer = LexiconAnalyzer()
 model_analyzer = ModelAnalyzer()
+hybrid_analyzer = HybridAnalyzer(strategy=HybridStrategy.CASCADE)
 
 evaluation_status = {
     'running': False,
@@ -39,7 +45,8 @@ evaluation_status = {
     'error_samples': {
         'model': [],
         'lexicon': [],
-        'external': []
+        'external': [],
+        'hybrid': []
     },
     'gpu_memory': {
         'current_mb': 0,
@@ -48,10 +55,13 @@ evaluation_status = {
     'response_times': {
         'model': [],
         'lexicon': [],
-        'external': []
+        'external': [],
+        'hybrid': []
     },
     'all_predictions': [],
-    'precision_mode': 'FP32'  # 当前评估使用的模型精度模式
+    'precision_mode': 'FP32',  # 当前评估使用的模型精度模式
+    'hybrid_stats': None,  # hybrid 模型统计信息
+    'hybrid_config': None  # hybrid 模型配置信息
 }
 
 
@@ -64,10 +74,17 @@ class EvaluationResult(BaseModel):
     correct_predictions: int
 
 
+class HybridEvaluationResult(EvaluationResult):
+    fast_path_ratio: float
+    lexicon_threshold: float
+    lexicon_score_threshold: float
+
+
 class EvaluationResponse(BaseModel):
     model: Optional[EvaluationResult] = None
     lexicon: Optional[EvaluationResult] = None
     external: Optional[EvaluationResult] = None
+    hybrid: Optional[HybridEvaluationResult] = None
 
 
 def calculate_metrics(y_true: List[str], y_pred: List[str]) -> Dict:
@@ -124,15 +141,27 @@ def calculate_metrics(y_true: List[str], y_pred: List[str]) -> Dict:
     }
 
 
+def run_evaluation_with_error_handling(test_data: List[Dict], include_external: bool = False):
+    """包装函数，用于捕获线程中的异常"""
+    logger.info(f"评估线程开始执行，数据量：{len(test_data)}")
+    try:
+        run_evaluation_sync(test_data, include_external)
+        logger.info("评估线程执行完成")
+    except Exception as e:
+        logger.error(f"评估线程执行失败：{str(e)}", exc_info=True)
+        evaluation_status['running'] = False
+        evaluation_status['error'] = f'评估执行失败：{str(e)}'
+
+
 def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
     global evaluation_status
     
     gpu_memory_peak = 0.0
     
     try:
-        # 获取当前模型分析器的精度模式
-        from sentiment import get_analyzer
-        current_analyzer = get_analyzer()
+        logger.info(f"开始执行评估，共 {len(test_data)} 条数据")
+        from sentiment import get_model_analyzer
+        current_analyzer = get_model_analyzer()
         precision_mode = current_analyzer.get_precision()
         
         lexicon_analyzer.reload()
@@ -147,11 +176,13 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         evaluation_status['total'] = total
         evaluation_status['running'] = True
         evaluation_status['error'] = None
-        evaluation_status['error_samples'] = {'model': [], 'lexicon': [], 'external': []}
+        evaluation_status['error_samples'] = {'model': [], 'lexicon': [], 'external': [], 'hybrid': []}
         evaluation_status['gpu_memory'] = {'current_mb': 0, 'peak_mb': 0}
-        evaluation_status['response_times'] = {'model': [], 'lexicon': [], 'external': []}
+        evaluation_status['response_times'] = {'model': [], 'lexicon': [], 'external': [], 'hybrid': []}
         evaluation_status['all_predictions'] = []
         evaluation_status['precision_mode'] = precision_mode  # 记录当前精度模式
+        evaluation_status['hybrid_stats'] = None  # 重置 hybrid 统计信息
+        evaluation_status['hybrid_config'] = None  # 重置 hybrid 配置信息
         
         results = {}
         all_predictions = []
@@ -217,6 +248,51 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         results['lexicon']['avg_response_time'] = sum(lexicon_times) / len(lexicon_times) if lexicon_times else 0
         evaluation_status['response_times']['lexicon'] = lexicon_times
         
+        # Hybrid 模型评估
+        evaluation_status['current_analyzer'] = 'hybrid'
+        evaluation_status['progress'] = 0
+        hybrid_predictions = []
+        hybrid_times = []
+        hybrid_analyzer.reset_stats()  # 重置统计信息
+        
+        for i, text in enumerate(texts):
+            start_time = time.time()
+            result = hybrid_analyzer.predict(text)
+            elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
+            hybrid_times.append(elapsed_time)
+            
+            hybrid_predictions.append(result['sentiment'])
+            all_predictions[i]['hybrid_pred'] = result['sentiment']
+            all_predictions[i]['hybrid_time'] = elapsed_time
+            all_predictions[i]['hybrid_method'] = result.get('method', '')
+            
+            if labels[i] != result['sentiment']:
+                evaluation_status['error_samples']['hybrid'].append({
+                    'text': text,
+                    'true_label': labels[i],
+                    'pred_label': result['sentiment'],
+                    'confidence': result.get('confidence', 0),
+                    'method': result.get('method', '')
+                })
+            evaluation_status['progress'] = i + 1
+        
+        results['hybrid'] = calculate_metrics(labels, hybrid_predictions)
+        results['hybrid']['avg_response_time'] = sum(hybrid_times) / len(hybrid_times) if hybrid_times else 0
+        
+        # 添加 hybrid 模型特有指标
+        hybrid_stats = hybrid_analyzer.get_stats()
+        results['hybrid']['fast_path_ratio'] = hybrid_stats['fast_path_ratio']
+        results['hybrid']['lexicon_threshold'] = hybrid_analyzer.config.get('lexicon_threshold', 0.75)
+        results['hybrid']['lexicon_score_threshold'] = hybrid_analyzer.config.get('lexicon_score_threshold', 2.0)
+        
+        evaluation_status['response_times']['hybrid'] = hybrid_times
+        evaluation_status['hybrid_stats'] = hybrid_stats
+        evaluation_status['hybrid_config'] = {
+            'strategy': 'cascade',
+            'lexicon_threshold': hybrid_analyzer.config.get('lexicon_threshold', 0.75),
+            'lexicon_score_threshold': hybrid_analyzer.config.get('lexicon_score_threshold', 2.0)
+        }
+        
         if include_external:
             evaluation_status['current_analyzer'] = 'external'
             evaluation_status['progress'] = 0
@@ -281,12 +357,16 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         )
         
     except Exception as e:
+        logger.error(f"评估执行失败：{str(e)}", exc_info=True)
         evaluation_status['running'] = False
         evaluation_status['error'] = str(e)
 
 
 @router.post('/upload')
-async def upload_test_data(file: UploadFile = File(...)):
+async def upload_test_data(
+    file: UploadFile = File(...),
+    _: bool = Depends(get_current_user)
+):
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(status_code=400, detail='请上传 Excel 文件 (.xlsx 或 .xls)')
     
@@ -324,7 +404,10 @@ async def upload_test_data(file: UploadFile = File(...)):
 
 
 @router.post('/run')
-async def run_evaluation(include_external: bool = False):
+async def run_evaluation(
+    include_external: bool = False,
+    _: bool = Depends(get_current_user)
+):
     global evaluation_status
     
     if evaluation_status['running']:
@@ -342,11 +425,12 @@ async def run_evaluation(include_external: bool = False):
             return {'success': False, 'message': '测试数据为空'}
         
         thread = threading.Thread(
-            target=run_evaluation_sync,
+            target=run_evaluation_with_error_handling,
             args=(test_data, include_external),
             daemon=True
         )
         thread.start()
+        logger.info(f"评估线程已启动，线程 ID: {thread.ident}")
         
         return {
             'success': True,
@@ -404,6 +488,19 @@ async def get_evaluation_results():
             'avg_response_time': results['lexicon'].get('avg_response_time', 0),
             'confusion_matrix': results['lexicon'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]])
         } if 'lexicon' in results else None,
+        'hybrid': {
+            'accuracy': results['hybrid']['accuracy'],
+            'precision': results['hybrid']['precision'],
+            'recall': results['hybrid']['recall'],
+            'f1_score': results['hybrid']['f1_score'],
+            'total_samples': results['hybrid']['total_samples'],
+            'correct_predictions': results['hybrid']['correct_predictions'],
+            'avg_response_time': results['hybrid'].get('avg_response_time', 0),
+            'confusion_matrix': results['hybrid'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]]),
+            'fast_path_ratio': results['hybrid'].get('fast_path_ratio', 0),
+            'lexicon_threshold': results['hybrid'].get('lexicon_threshold', 0.75),
+            'lexicon_score_threshold': results['hybrid'].get('lexicon_score_threshold', 2.0)
+        } if 'hybrid' in results else None,
         'external': {
             'accuracy': results['external']['accuracy'],
             'precision': results['external']['precision'],
@@ -420,7 +517,7 @@ async def get_evaluation_results():
 @router.get('/error-samples')
 async def get_error_samples(analyzer: str = 'model', limit: int = 20):
     """获取错误分类样本"""
-    if analyzer not in ['model', 'lexicon', 'external']:
+    if analyzer not in ['model', 'lexicon', 'external', 'hybrid']:
         return {'success': False, 'message': '无效的分析器类型'}
     
     samples = evaluation_status['error_samples'].get(analyzer, [])
@@ -433,7 +530,7 @@ async def get_error_samples(analyzer: str = 'model', limit: int = 20):
 
 
 @router.post('/reset')
-async def reset_evaluation():
+async def reset_evaluation(_: bool = Depends(get_current_user)):
     global evaluation_status
     evaluation_status = {
         'running': False,
@@ -445,12 +542,23 @@ async def reset_evaluation():
         'error_samples': {
             'model': [],
             'lexicon': [],
-            'external': []
+            'external': [],
+            'hybrid': []
         },
         'gpu_memory': {
             'current_mb': 0,
             'peak_mb': 0
-        }
+        },
+        'response_times': {
+            'model': [],
+            'lexicon': [],
+            'external': [],
+            'hybrid': []
+        },
+        'all_predictions': [],
+        'precision_mode': 'FP32',
+        'hybrid_stats': None,
+        'hybrid_config': None
     }
     return {'success': True, 'message': '评估状态已重置'}
 
@@ -492,7 +600,8 @@ async def export_evaluation_results(format: str = 'csv'):
         analyzer_names = {
             'model': '深度学习模型',
             'lexicon': '情感词典',
-            'external': '外部API'
+            'hybrid': '混合模型',
+            'external': '外部 API'
         }
         
         for key, name in analyzer_names.items():
@@ -502,8 +611,8 @@ async def export_evaluation_results(format: str = 'csv'):
                     '准确率': f"{results[key]['accuracy'] * 100:.2f}%",
                     '精确率': f"{results[key]['precision'] * 100:.2f}%",
                     '召回率': f"{results[key]['recall'] * 100:.2f}%",
-                    'F1分数': f"{results[key]['f1_score'] * 100:.2f}%",
-                    '平均响应时间(ms)': f"{results[key].get('avg_response_time', 0):.2f}",
+                    'F1 分数': f"{results[key]['f1_score'] * 100:.2f}%",
+                    '平均响应时间 (ms)': f"{results[key].get('avg_response_time', 0):.2f}",
                     '样本数': results[key]['total_samples']
                 })
         
@@ -517,13 +626,16 @@ async def export_evaluation_results(format: str = 'csv'):
                     '文本': pred['text'],
                     '真实标签': pred['true_label'],
                     '深度学习模型预测': pred.get('model_pred', ''),
-                    '深度学习模型响应时间(ms)': f"{pred.get('model_time', 0):.2f}",
+                    '深度学习模型响应时间 (ms)': f"{pred.get('model_time', 0):.2f}",
                     '情感词典预测': pred.get('lexicon_pred', ''),
-                    '情感词典响应时间(ms)': f"{pred.get('lexicon_time', 0):.2f}"
+                    '情感词典响应时间 (ms)': f"{pred.get('lexicon_time', 0):.2f}",
+                    '混合模型预测': pred.get('hybrid_pred', ''),
+                    '混合模型响应时间 (ms)': f"{pred.get('hybrid_time', 0):.2f}",
+                    '混合模型方法': pred.get('hybrid_method', '')
                 }
                 if 'external_pred' in pred:
-                    row['外部API预测'] = pred['external_pred']
-                    row['外部API响应时间(ms)'] = f"{pred.get('external_time', 0):.2f}"
+                    row['外部 API 预测'] = pred['external_pred']
+                    row['外部 API 响应时间 (ms)'] = f"{pred.get('external_time', 0):.2f}"
                 detail_data.append(row)
             
             detail_df = pd.DataFrame(detail_data)
@@ -585,10 +697,11 @@ async def generate_evaluation_charts():
         analyzer_names = {
             'model': '深度学习模型',
             'lexicon': '情感词典',
-            'external': '外部API'
+            'hybrid': '混合模型',
+            'external': '外部 API'
         }
         
-        for key in ['model', 'lexicon', 'external']:
+        for key in ['model', 'lexicon', 'hybrid', 'external']:
             if key in results:
                 analyzers.append(analyzer_names[key])
                 accuracy.append(results[key]['accuracy'] * 100)
@@ -687,4 +800,54 @@ async def generate_evaluation_charts():
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f'生成图表失败: {str(e)}')
+        raise HTTPException(status_code=500, detail=f'生成图表失败：{str(e)}')
+
+
+@router.post('/hybrid/config')
+async def configure_hybrid_analyzer(config: dict):
+    """
+    配置混合分析器参数
+    """
+    try:
+        lexicon_threshold = config.get('lexicon_threshold', 0.75)
+        lexicon_score_threshold = config.get('lexicon_score_threshold', 2.0)
+        
+        # 更新 hybrid_analyzer 的配置
+        hybrid_analyzer.config['lexicon_threshold'] = lexicon_threshold
+        hybrid_analyzer.config['lexicon_score_threshold'] = lexicon_score_threshold
+        
+        return {
+            'success': True,
+            'message': '混合分析器配置已更新',
+            'config': {
+                'lexicon_threshold': lexicon_threshold,
+                'lexicon_score_threshold': lexicon_score_threshold
+            }
+        }
+    except Exception as e:
+        return {'success': False, 'message': f'配置失败：{str(e)}'}
+
+
+@router.get('/hybrid/config')
+async def get_hybrid_config():
+    """获取混合分析器当前配置"""
+    return {
+        'success': True,
+        'config': {
+            'lexicon_threshold': hybrid_analyzer.config.get('lexicon_threshold', 0.75),
+            'lexicon_score_threshold': hybrid_analyzer.config.get('lexicon_score_threshold', 2.0)
+        }
+    }
+
+
+@router.get('/hybrid/stats')
+async def get_hybrid_stats():
+    """获取混合分析器统计信息"""
+    try:
+        stats = hybrid_analyzer.get_stats()
+        return {
+            'success': True,
+            'stats': stats
+        }
+    except Exception as e:
+        return {'success': False, 'message': f'获取统计失败：{str(e)}'}

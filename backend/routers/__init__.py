@@ -10,6 +10,7 @@ from routers.performance import router as performance_router
 from routers.training import router as training_router
 from routers.evaluation import router as evaluation_router
 from routers.quantization import router as quantization_router
+from routers.hybrid_experiment import router as hybrid_experiment_router
 
 __all__ = [
     'text_analysis_router',
@@ -17,5 +18,6 @@ __all__ = [
     'performance_router',
     'training_router',
     'evaluation_router',
-    'quantization_router'
+    'quantization_router',
+    'hybrid_experiment_router'
 ]

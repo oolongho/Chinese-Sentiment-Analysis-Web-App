@@ -97,7 +97,9 @@ def save_evaluation_cache(
     data_info: Optional[Dict] = None,
     all_predictions: Optional[List] = None,
     response_times: Optional[Dict] = None,
-    precision_mode: Optional[Literal["FP32", "INT8"]] = None
+    precision_mode: Optional[Literal["FP32", "INT8"]] = None,
+    hybrid_stats: Optional[Dict] = None,
+    hybrid_config: Optional[Dict] = None
 ):
     """保存评估结果到缓存
     
@@ -109,6 +111,8 @@ def save_evaluation_cache(
         all_predictions: 所有预测结果列表
         response_times: 响应时间字典
         precision_mode: 模型精度模式，"FP32" 或 "INT8"，默认 None（向后兼容）
+        hybrid_stats: 混合模型统计信息，默认 None
+        hybrid_config: 混合模型配置参数，默认 None
     """
     with _cache_lock:
         cache_data = {
@@ -120,11 +124,13 @@ def save_evaluation_cache(
                 "data_info": data_info or {},
                 "all_predictions": all_predictions or [],
                 "response_times": response_times or {},
-                "precision_mode": precision_mode  # 新增精度模式字段
+                "precision_mode": precision_mode,
+                "hybrid_stats": hybrid_stats or {},
+                "hybrid_config": hybrid_config or {}
             }
         }
         _save_cache(EVALUATION_CACHE_FILE, cache_data)
-        logger.info(f"评估缓存已保存 (precision_mode={precision_mode})")
+        logger.info(f"评估缓存已保存 (precision_mode={precision_mode}, hybrid_stats={hybrid_stats})")
 
 
 def load_evaluation_cache() -> Optional[Dict]:

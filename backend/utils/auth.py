@@ -6,8 +6,9 @@
 
 import hashlib
 import time
-from typing import Dict
+from typing import Dict, Optional
 import jwt
+from fastapi import Header, HTTPException
 
 from config import ADMIN_PASSWORD_HASH, SECRET_KEY
 from utils.logger import get_logger
@@ -90,3 +91,28 @@ def verify_token(token: str) -> Dict:
     except jwt.InvalidTokenError as e:
         logger.warning(f"Token验证失败: 无效的Token - {e}")
         return {'valid': False, 'error': '无效的Token'}
+
+
+def get_current_user(authorization: Optional[str] = Header(None)) -> bool:
+    """
+    FastAPI 依赖项：验证用户认证
+    
+    Args:
+        authorization: 请求头中的 Authorization 字段
+    
+    Returns:
+        认证成功返回 True
+    
+    Raises:
+        HTTPException: 认证失败时抛出 401 错误
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail='未提供认证信息')
+    
+    token = authorization.replace('Bearer ', '') if authorization.startswith('Bearer ') else authorization
+    result = verify_token(token)
+    
+    if not result['valid']:
+        raise HTTPException(status_code=401, detail=result['error'])
+    
+    return True

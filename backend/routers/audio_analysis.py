@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 import logging
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 
@@ -18,6 +18,7 @@ from config import DATA_DIR
 from services import call_audio_api, call_text_api
 from services.speech_service import speech_service, FUNASR_AVAILABLE
 from services.system_monitor import system_monitor
+from utils.auth import get_current_user
 from routers.logger import get_logger
 
 logger = get_logger('audio_analysis')
@@ -153,7 +154,7 @@ async def get_model_status():
 
 
 @router.post('/load-model')
-async def load_speech_model():
+async def load_speech_model(_: bool = Depends(get_current_user)):
     if not FUNASR_AVAILABLE:
         raise HTTPException(status_code=400, detail='FunASR 库未安装，请运行: pip install funasr modelscope')
     
@@ -178,7 +179,7 @@ async def load_speech_model():
 
 
 @router.post('/unload-model')
-async def unload_speech_model():
+async def unload_speech_model(_: bool = Depends(get_current_user)):
     speech_service.unload_model()
     return {'success': True, 'message': '模型已卸载'}
 

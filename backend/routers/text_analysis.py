@@ -14,6 +14,7 @@ MAX_TEXT_LENGTH = 5000
 MAX_BATCH_SIZE = 100
 
 from sentiment import get_lexicon_analyzer, get_model_analyzer, reload_lexicon_analyzer
+from sentiment.hybrid_analyzer import HybridAnalyzer, HybridStrategy
 from services import call_text_api
 from services.system_monitor import system_monitor
 from routers.performance import record_analysis
@@ -22,6 +23,26 @@ from routers.logger import get_logger
 logger = get_logger('text_analysis')
 
 router = APIRouter(prefix='/api/text', tags=['文本分析'])
+
+# 混合分析器单例
+_hybrid_analyzer_instance: Optional[HybridAnalyzer] = None
+
+
+def get_hybrid_analyzer(strategy: HybridStrategy = HybridStrategy.CASCADE) -> HybridAnalyzer:
+    """
+    获取混合分析器单例实例
+    
+    Args:
+        strategy: 混合策略
+        
+    Returns:
+        HybridAnalyzer 实例
+    """
+    global _hybrid_analyzer_instance
+    if _hybrid_analyzer_instance is None:
+        logger.info("初始化混合分析器单例")
+        _hybrid_analyzer_instance = HybridAnalyzer(strategy=strategy)
+    return _hybrid_analyzer_instance
 
 
 def reload_lexicon():
@@ -71,6 +92,31 @@ class ExternalAnalysisResult(BaseModel):
 
 class BatchExternalAnalysisResponse(BaseModel):
     results: List[ExternalAnalysisResult]
+
+
+class HybridAnalysisRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=MAX_TEXT_LENGTH)
+    strategy: str = Field(default="cascade", description="混合策略：cascade, weighted, rule_based")
+    config: Optional[Dict] = Field(default=None, description="可选配置参数")
+
+
+class HybridStats(BaseModel):
+    total_predictions: int = 0
+    cascade_fast_path: int = 0
+    cascade_slow_path: int = 0
+    fast_path_ratio: float = 0.0
+
+
+class HybridAnalysisResult(BaseModel):
+    sentiment: str
+    confidence: float
+    scores: Dict[str, float]
+    method: str  # lexicon_fast 或 cascade_fusion
+    inference_time_ms: float
+    hybrid_stats: Optional[HybridStats] = None
+    hybrid_strategy: Optional[str] = None
+    lexicon_result: Optional[Dict] = None
+    roberta_result: Optional[Dict] = None
 
 
 def _analyze_lexicon_sync(text: str) -> dict:
@@ -199,10 +245,10 @@ async def analyze_lexicon(request: TextRequest):
 async def analyze_model(request: TextRequest):
     text = request.text.strip()
     if not text:
-        logger.warning("模型分析请求: 文本为空")
+        logger.warning("模型分析请求：文本为空")
         raise HTTPException(status_code=400, detail='文本不能为空')
 
-    logger.info(f"开始模型分析: {text[:50]}...")
+    logger.info(f"开始模型分析：{text[:50]}...")
 
     result, profiling, processing_time = system_monitor.profile_analysis(
         _analyze_model_sync, text
@@ -216,6 +262,72 @@ async def analyze_model(request: TextRequest):
     
     result['processing_time'] = round(processing_time, 4)
     return result
+
+
+def _analyze_hybrid_sync(text: str, strategy: HybridStrategy, config: Optional[Dict] = None) -> dict:
+    """同步执行混合分析"""
+    hybrid_analyzer = get_hybrid_analyzer(strategy=strategy)
+    return hybrid_analyzer.predict(text)
+
+
+@router.post('/analyze/hybrid', response_model=HybridAnalysisResult)
+async def analyze_hybrid(request: HybridAnalysisRequest):
+    """
+    混合情感分析 API
+    
+    结合深度学习与词典方法，提供：
+    1. 级联加速：简单案例用词典（快速），复杂案例用深度学习（准确）
+    2. 置信度加权：根据两种方法的置信度动态融合结果
+    3. 规则修正：用词典规则修正深度学习的明显错误
+    """
+    text = request.text.strip()
+    if not text:
+        logger.warning("混合分析请求：文本为空")
+        raise HTTPException(status_code=400, detail='文本不能为空')
+    
+    # 解析策略
+    try:
+        strategy = HybridStrategy(request.strategy.lower())
+    except ValueError:
+        logger.warning(f"无效的混合策略：{request.strategy}，使用默认 cascade")
+        strategy = HybridStrategy.CASCADE
+    
+    logger.info(f"开始混合分析：{text[:50]}... (策略：{strategy.value})")
+    
+    # 执行分析并监控性能
+    result, profiling, processing_time = system_monitor.profile_analysis(
+        _analyze_hybrid_sync, text, strategy, request.config
+    )
+    
+    # 记录性能统计
+    record_analysis(
+        'text', result['sentiment'], processing_time, 'hybrid',
+        profiling.cpu_peak, profiling.cpu_avg,
+        profiling.gpu_peak, profiling.gpu_avg
+    )
+    
+    # 获取混合分析器统计信息
+    hybrid_analyzer = get_hybrid_analyzer(strategy=strategy)
+    stats = hybrid_analyzer.get_stats()
+    
+    logger.info(f"混合分析完成：{result['sentiment']} (方法：{result['method']}, 耗时：{result['inference_time_ms']:.2f}ms)")
+    
+    return HybridAnalysisResult(
+        sentiment=result['sentiment'],
+        confidence=result['confidence'],
+        scores=result.get('scores', {}),
+        method=result['method'],
+        inference_time_ms=round(result['inference_time_ms'], 4),
+        hybrid_stats=HybridStats(
+            total_predictions=stats['total_predictions'],
+            cascade_fast_path=stats['cascade_fast_path'],
+            cascade_slow_path=stats['cascade_slow_path'],
+            fast_path_ratio=round(stats['fast_path_ratio'], 4)
+        ),
+        hybrid_strategy=result.get('hybrid_strategy'),
+        lexicon_result=result.get('lexicon_result'),
+        roberta_result=result.get('roberta_result')
+    )
 
 
 @router.post('/analyze/batch', response_model=BatchAnalysisResponse)

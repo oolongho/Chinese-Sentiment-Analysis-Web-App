@@ -20,7 +20,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel, Field
 
 from services.quantization_service import (
@@ -32,6 +32,7 @@ from services.unified_model_manager import (
     unified_model_manager,
     PrecisionMode
 )
+from utils.auth import get_current_user
 
 
 # ==================== 数据模型 ====================
@@ -193,7 +194,7 @@ router = APIRouter(prefix='/api/quantization', tags=['模型量化'])
 
 
 @router.post('/quantize/fp16', response_model=QuantizeResponse, summary="执行 FP16 量化")
-async def quantize_model_fp16():
+async def quantize_model_fp16(_: bool = Depends(get_current_user)):
     """
     执行 FP16 半精度量化
     
@@ -231,7 +232,7 @@ async def quantize_model_fp16():
 
 
 @router.post('/quantize/int8', response_model=QuantizeResponse, summary="执行 INT8 量化")
-async def quantize_model_int8():
+async def quantize_model_int8(_: bool = Depends(get_current_user)):
     """
     执行 INT8 动态量化
     
@@ -290,7 +291,10 @@ async def get_global_mode():
 
 
 @router.post('/switch', response_model=SwitchModeResponse, summary="切换全局精度模式")
-async def switch_global_mode(request: SwitchModeRequest):
+async def switch_global_mode(
+    request: SwitchModeRequest,
+    _: bool = Depends(get_current_user)
+):
     """
     切换全局精度模式
     
@@ -352,7 +356,10 @@ async def get_quantization_status():
 
 
 @router.post('/testset/upload', response_model=UploadTestsetResponse, summary="上传测试集")
-async def upload_testset(file: UploadFile = File(...)):
+async def upload_testset(
+    file: UploadFile = File(...),
+    _: bool = Depends(get_current_user)
+):
     """上传测试集文件"""
     try:
         print(f"[量化 API] 开始上传测试集：{file.filename}")
