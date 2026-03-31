@@ -57,6 +57,7 @@ class ProfilingResult:
 class SystemMonitor:
     _instance = None
     _lock = threading.Lock()
+    _thread_local = threading.local()
     
     def __new__(cls, max_history: int = 100):
         if cls._instance is None:
@@ -75,7 +76,6 @@ class SystemMonitor:
         self._gpu_available = TORCH_AVAILABLE and torch.cuda.is_available()
         self._pynvml_initialized = False
         
-        # 尝试初始化pynvml
         if PYNVML_AVAILABLE and self._gpu_available:
             try:
                 nvmlInit()
@@ -85,10 +85,6 @@ class SystemMonitor:
                 self._pynvml_initialized = False
         
         self._profiling_lock = threading.Lock()
-        self._profiling_active = False
-        self._profiling_thread: Optional[threading.Thread] = None
-        self._profiling_samples: List[Dict] = []
-        self._profiling_start_time: float = 0.0
     
     def _get_current_usage(self) -> Dict:
         cpu_percent = psutil.cpu_percent(interval=0.0)
@@ -197,42 +193,42 @@ class SystemMonitor:
             self._history.clear()
     
     def start_profiling(self) -> bool:
-        with self._profiling_lock:
-            if self._profiling_active:
-                return False
-            
-            self._profiling_active = True
-            self._profiling_samples = []
-            self._profiling_start_time = time.time()
-            
-            self._profiling_thread = threading.Thread(target=self._profiling_worker, daemon=True)
-            self._profiling_thread.start()
-            
-            return True
+        if getattr(SystemMonitor._thread_local, 'profiling_active', False):
+            return False
+        
+        SystemMonitor._thread_local.profiling_active = True
+        SystemMonitor._thread_local.profiling_samples = []
+        SystemMonitor._thread_local.profiling_start_time = time.time()
+        
+        profiling_thread = threading.Thread(target=self._profiling_worker, daemon=True)
+        SystemMonitor._thread_local.profiling_thread = profiling_thread
+        profiling_thread.start()
+        
+        return True
     
     def _profiling_worker(self):
         while True:
-            with self._profiling_lock:
-                if not self._profiling_active:
-                    break
+            if not getattr(SystemMonitor._thread_local, 'profiling_active', False):
+                break
             
             sample = self._get_current_usage()
             
-            with self._profiling_lock:
-                if self._profiling_active:
-                    self._profiling_samples.append(sample)
+            if getattr(SystemMonitor._thread_local, 'profiling_active', False):
+                samples = getattr(SystemMonitor._thread_local, 'profiling_samples', [])
+                samples.append(sample)
+                SystemMonitor._thread_local.profiling_samples = samples
             
             time.sleep(0.02)
     
     def stop_profiling(self) -> ProfilingResult:
-        with self._profiling_lock:
-            self._profiling_active = False
-            samples = self._profiling_samples.copy()
-            start_time = self._profiling_start_time
+        SystemMonitor._thread_local.profiling_active = False
+        samples = getattr(SystemMonitor._thread_local, 'profiling_samples', [])
+        start_time = getattr(SystemMonitor._thread_local, 'profiling_start_time', time.time())
         
-        if self._profiling_thread:
-            self._profiling_thread.join(timeout=0.5)
-            self._profiling_thread = None
+        profiling_thread = getattr(SystemMonitor._thread_local, 'profiling_thread', None)
+        if profiling_thread:
+            profiling_thread.join(timeout=0.5)
+            SystemMonitor._thread_local.profiling_thread = None
         
         if not samples:
             return ProfilingResult()

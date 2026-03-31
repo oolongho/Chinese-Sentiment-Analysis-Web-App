@@ -13,8 +13,11 @@ import os
 import threading
 import asyncio
 import json
+import logging
 from datetime import datetime
 from typing import Optional, Callable, Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 TRAINING_STATUS = {
     'status': 'idle',
@@ -44,6 +47,7 @@ TRAINING_HISTORY = {
 
 _training_lock = threading.Lock()
 _training_thread: Optional[threading.Thread] = None
+_cancel_flag = threading.Event()  # 用于取消训练的标志
 
 
 def update_training_status(**kwargs):
@@ -61,6 +65,7 @@ def get_training_status() -> Dict[str, Any]:
 
 def run_training(data_file: str, params: Dict):
     """在后台运行训练任务"""
+    global _cancel_flag
     gpu_memory_peak = 0.0
     
     try:
@@ -81,6 +86,11 @@ def run_training(data_file: str, params: Dict):
         from services.cache_service import save_training_cache
         
         def progress_cb(epoch, total_epochs, metrics=None, msg=''):
+            # 检查取消标志
+            if _cancel_flag.is_set():
+                logger.info(f"训练被取消（epoch {epoch}）")
+                raise InterruptedError("训练被用户取消")
+            
             nonlocal gpu_memory_peak
             gpu_info = system_monitor.get_gpu_memory_info()
             current_mb = gpu_info.allocated_mb
@@ -116,6 +126,20 @@ def run_training(data_file: str, params: Dict):
             params=params
         )
         
+    except InterruptedError as e:
+        # 训练被用户取消
+        logger.info("训练被用户取消")
+        update_training_status(
+            status='cancelled',
+            message='训练已取消',
+            end_time=datetime.now().isoformat()
+        )
+        save_training_cache(
+            status='cancelled',
+            error='用户取消',
+            params=params
+        )
+    
     except Exception as e:
         update_training_status(
             status='failed',
@@ -132,11 +156,25 @@ def run_training(data_file: str, params: Dict):
 
 def start_training(data_file: str, params: Dict) -> bool:
     """启动训练任务"""
-    global _training_thread
+    global _training_thread, _cancel_flag
     
     with _training_lock:
         if TRAINING_STATUS['status'] == 'training':
             return False
+        
+        # 清空历史数据
+        global TRAINING_HISTORY
+        TRAINING_HISTORY = {
+            'epochs': [],
+            'train_loss': [],
+            'eval_loss': [],
+            'accuracy': [],
+            'f1': [],
+            'learning_rate': []
+        }
+        
+        # 重置取消标志
+        _cancel_flag = threading.Event()
         
         _training_thread = threading.Thread(
             target=run_training,
@@ -144,15 +182,18 @@ def start_training(data_file: str, params: Dict) -> bool:
             daemon=True
         )
         _training_thread.start()
-        
+    
     return True
 
 
 def cancel_training() -> bool:
-    """取消训练任务（标记为取消，实际需要训练脚本支持）"""
+    """取消训练任务"""
+    global _cancel_flag
     with _training_lock:
         if TRAINING_STATUS['status'] != 'training':
             return False
+        # 设置取消标志
+        _cancel_flag.set()
         TRAINING_STATUS['status'] = 'cancelled'
         TRAINING_STATUS['message'] = '训练已取消'
         TRAINING_STATUS['end_time'] = datetime.now().isoformat()

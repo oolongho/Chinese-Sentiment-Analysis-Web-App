@@ -11,6 +11,7 @@
 import os
 import json
 import logging
+import threading
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -20,7 +21,10 @@ from config import DATA_DIR
 from services.system_monitor import system_monitor
 from utils.auth import get_current_user
 
-logger = logging.getLogger('performance')
+logger = logging.getLogger(__name__)
+
+STATS_FILE = os.path.join(DATA_DIR, 'stats.json')
+_stats_lock = threading.Lock()  # 统计数据锁
 
 router = APIRouter(prefix='/api/performance', tags=['性能统计'])
 
@@ -169,39 +173,40 @@ def record_analysis(
     gpu_peak: Optional[float] = None,
     gpu_avg: Optional[float] = None
 ):
-    stats = load_stats()
-    
-    stats['total_analyses'] += 1
-    
-    if analyzer_type in stats['text_analyses']:
-        analyzer_stats = stats['text_analyses'][analyzer_type]
-        analyzer_stats['count'] += 1
-        analyzer_stats['total_time'] += processing_time
-        analyzer_stats['avg_time'] = analyzer_stats['total_time'] / analyzer_stats['count']
+    with _stats_lock:
+        stats = load_stats()
         
-        if cpu_peak > analyzer_stats.get('cpu_peak', 0):
-            analyzer_stats['cpu_peak'] = cpu_peak
-        if cpu_avg > 0:
-            old_avg = analyzer_stats.get('cpu_avg', 0)
-            count = analyzer_stats['count']
-            analyzer_stats['cpu_avg'] = (old_avg * (count - 1) + cpu_avg) / count
+        stats['total_analyses'] += 1
         
-        if gpu_peak is not None:
-            current_gpu_peak = analyzer_stats.get('gpu_peak')
-            if current_gpu_peak is None or gpu_peak > current_gpu_peak:
-                analyzer_stats['gpu_peak'] = gpu_peak
-        if gpu_avg is not None:
-            old_gpu_avg = analyzer_stats.get('gpu_avg')
-            count = analyzer_stats['count']
-            if old_gpu_avg is None:
-                analyzer_stats['gpu_avg'] = gpu_avg
-            else:
-                analyzer_stats['gpu_avg'] = (old_gpu_avg * (count - 1) + gpu_avg) / count
-    
-    sentiment_key = 'positive' if sentiment == '正面' else ('negative' if sentiment == '负面' else 'neutral')
-    stats['sentiment_counts'][sentiment_key] = stats['sentiment_counts'].get(sentiment_key, 0) + 1
-    
-    save_stats(stats)
+        if analyzer_type in stats['text_analyses']:
+            analyzer_stats = stats['text_analyses'][analyzer_type]
+            analyzer_stats['count'] += 1
+            analyzer_stats['total_time'] += processing_time
+            analyzer_stats['avg_time'] = analyzer_stats['total_time'] / analyzer_stats['count']
+            
+            if cpu_peak > analyzer_stats.get('cpu_peak', 0):
+                analyzer_stats['cpu_peak'] = cpu_peak
+            if cpu_avg > 0:
+                old_avg = analyzer_stats.get('cpu_avg', 0)
+                count = analyzer_stats['count']
+                analyzer_stats['cpu_avg'] = (old_avg * (count - 1) + cpu_avg) / count
+            
+            if gpu_peak is not None:
+                current_gpu_peak = analyzer_stats.get('gpu_peak')
+                if current_gpu_peak is None or gpu_peak > current_gpu_peak:
+                    analyzer_stats['gpu_peak'] = gpu_peak
+            if gpu_avg is not None:
+                old_gpu_avg = analyzer_stats.get('gpu_avg')
+                count = analyzer_stats['count']
+                if old_gpu_avg is None:
+                    analyzer_stats['gpu_avg'] = gpu_avg
+                else:
+                    analyzer_stats['gpu_avg'] = (old_gpu_avg * (count - 1) + gpu_avg) / count
+        
+        sentiment_key = 'positive' if sentiment == '正面' else ('negative' if sentiment == '负面' else 'neutral')
+        stats['sentiment_counts'][sentiment_key] = stats['sentiment_counts'].get(sentiment_key, 0) + 1
+        
+        save_stats(stats)
     
     system_monitor.record_snapshot()
     
@@ -209,13 +214,14 @@ def record_analysis(
 
 
 def update_model_metrics(analyzer_type: str, metrics: Dict):
-    stats = load_stats()
-    
-    if analyzer_type not in stats['model_metrics']:
-        stats['model_metrics'][analyzer_type] = _default_metrics()
-    
-    stats['model_metrics'][analyzer_type].update(metrics)
-    save_stats(stats)
+    with _stats_lock:
+        stats = load_stats()
+        
+        if analyzer_type not in stats['model_metrics']:
+            stats['model_metrics'][analyzer_type] = _default_metrics()
+        
+        stats['model_metrics'][analyzer_type].update(metrics)
+        save_stats(stats)
 
 
 @router.get('/stats')
