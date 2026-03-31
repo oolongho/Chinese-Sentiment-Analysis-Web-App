@@ -6,6 +6,7 @@
 
 import time
 import asyncio
+import threading
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
@@ -26,6 +27,7 @@ router = APIRouter(prefix='/api/text', tags=['文本分析'])
 
 # 混合分析器单例
 _hybrid_analyzer_instance: Optional[HybridAnalyzer] = None
+_strategy_lock = threading.Lock()
 
 
 def get_hybrid_analyzer(strategy: HybridStrategy = HybridStrategy.CASCADE) -> HybridAnalyzer:
@@ -39,12 +41,16 @@ def get_hybrid_analyzer(strategy: HybridStrategy = HybridStrategy.CASCADE) -> Hy
         HybridAnalyzer 实例
     """
     global _hybrid_analyzer_instance
-    if _hybrid_analyzer_instance is None:
-        logger.info(f"初始化混合分析器，策略：{strategy.value}")
-        _hybrid_analyzer_instance = HybridAnalyzer(strategy=strategy)
-    elif _hybrid_analyzer_instance.strategy != strategy:
-        logger.info(f"更新混合分析器策略：{_hybrid_analyzer_instance.strategy.value} -> {strategy.value}")
-        _hybrid_analyzer_instance.strategy = strategy
+    
+    # 使用锁保护策略更新
+    with _strategy_lock:
+        if _hybrid_analyzer_instance is None:
+            logger.info(f"初始化混合分析器，策略：{strategy.value}")
+            _hybrid_analyzer_instance = HybridAnalyzer(strategy=strategy)
+        elif _hybrid_analyzer_instance.strategy != strategy:
+            logger.info(f"更新混合分析器策略：{_hybrid_analyzer_instance.strategy.value} -> {strategy.value}")
+            _hybrid_analyzer_instance.strategy = strategy
+    
     return _hybrid_analyzer_instance
 
 
