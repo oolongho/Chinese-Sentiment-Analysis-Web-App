@@ -467,9 +467,9 @@ const QuantizationContent: React.FC = () => {
             onChange={(e) => setComparisonType(e.target.value as ComparisonType)}
             className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           >
-            <option value="fp32_vs_fp16">FP32 vs FP16 (GPU vs GPU) - 公平对比</option>
-            <option value="fp32_vs_int8">FP32 vs INT8 (GPU vs CPU) - 压缩效果</option>
-            <option value="fp16_vs_int8">FP16 vs INT8 (GPU vs CPU) - 部署对比</option>
+            <option value="fp32_vs_fp16">FP32 vs FP16 (GPU vs GPU) </option>
+            <option value="fp32_vs_int8">FP32 vs INT8 (GPU vs CPU) </option>
+            <option value="fp16_vs_int8">FP16 vs INT8 (GPU vs CPU) </option>
           </select>
         </div>
         
