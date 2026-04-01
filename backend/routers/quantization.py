@@ -441,9 +441,15 @@ async def upload_testset(
         
         return UploadTestsetResponse(
             success=True,
+            message='测试集上传成功',
             testset_id=testset_id,
-            sample_count=len(df),
-            label_distribution=label_distribution
+            info=TestsetInfo(
+                id=testset_id,
+                filename=file.filename or 'unknown',
+                sample_count=len(df),
+                upload_time=time.strftime('%Y-%m-%d %H:%M:%S'),
+                label_distribution=label_distribution
+            )
         )
     
     except HTTPException:
@@ -452,11 +458,8 @@ async def upload_testset(
         print(f"[量化 API] 测试集上传失败：{str(e)}")
         raise HTTPException(status_code=500, detail=f"测试集上传失败：{str(e)}")
     finally:
-        # 统一清理临时文件
         if file_path and file_path.exists():
             cleanup_file(str(file_path))
-        if processed_path and processed_path.exists():
-            cleanup_file(str(processed_path))
 
 
 @router.get('/testset/list', summary="获取已上传的测试集列表")
@@ -486,7 +489,7 @@ def list_testsets():
 
 
 @router.post('/compare', response_model=ComparisonResponse, summary="运行对比实验")
-async def run_comparison_experiment(request: ComparisonRequest = ComparisonRequest()):
+async def run_comparison_experiment(request: ComparisonRequest = ComparisonRequest(), _: bool = Depends(get_current_user)):
     """
     运行对比实验
     

@@ -289,7 +289,8 @@ async def record_analysis_endpoint(
     cpu_peak: float = 0.0,
     cpu_avg: float = 0.0,
     gpu_peak: Optional[float] = None,
-    gpu_avg: Optional[float] = None
+    gpu_avg: Optional[float] = None,
+    _: bool = Depends(get_current_user)
 ):
     success = record_analysis(
         analysis_type, sentiment, processing_time, analyzer_type,
@@ -299,7 +300,7 @@ async def record_analysis_endpoint(
 
 
 @router.post('/metrics/update')
-async def update_metrics_endpoint(analyzer_type: str, metrics: Dict):
+async def update_metrics_endpoint(analyzer_type: str, metrics: Dict, _: bool = Depends(get_current_user)):
     update_model_metrics(analyzer_type, metrics)
     return {'success': True}
 

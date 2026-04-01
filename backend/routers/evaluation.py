@@ -580,7 +580,7 @@ async def get_cached_evaluation_result():
 
 
 @router.post('/clear-cache')
-async def clear_evaluation_cache():
+async def clear_evaluation_cache(_: bool = Depends(get_current_user)):
     """清除评估缓存"""
     from services.cache_service import clear_evaluation_cache
     clear_evaluation_cache()
@@ -588,7 +588,7 @@ async def clear_evaluation_cache():
 
 
 @router.get('/export')
-async def export_evaluation_results(format: str = 'csv'):
+async def export_evaluation_results(format: str = 'csv', _: bool = Depends(get_current_user)):
     """
     导出评估结果
     format: csv - 导出CSV格式的详细结果
@@ -809,7 +809,7 @@ async def generate_evaluation_charts():
 
 
 @router.post('/hybrid/config')
-async def configure_hybrid_analyzer(config: dict):
+async def configure_hybrid_analyzer(config: dict, _: bool = Depends(get_current_user)):
     """
     配置混合分析器参数
     """

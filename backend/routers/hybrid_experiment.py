@@ -5,7 +5,7 @@
 提供深度学习、词典方法、混合模型的对比实验功能
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import time
@@ -13,6 +13,7 @@ import time
 from sentiment.lexicon_analyzer import LexiconAnalyzer
 from sentiment.model_analyzer import ModelAnalyzer
 from sentiment.hybrid_analyzer import HybridAnalyzer, HybridStrategy
+from utils.auth import get_current_user
 
 
 router = APIRouter(prefix='/api/experiments', tags=['对比实验'])
@@ -51,7 +52,7 @@ class ComparisonResponse(BaseModel):
 
 
 @router.post('/compare_methods', response_model=ComparisonResponse, summary="对比三种方法")
-async def compare_sentiment_methods(request: ComparisonRequest):
+async def compare_sentiment_methods(request: ComparisonRequest, _: bool = Depends(get_current_user)):
     """
     对比深度学习、词典方法、混合模型的性能
     
