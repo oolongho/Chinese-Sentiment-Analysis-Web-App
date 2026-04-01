@@ -100,6 +100,7 @@ data/cache/
 # Some data
 data/training/
 data/audio/
+data/uploads/
 data/stats.json
 data/external_api_config.json
 毕设论文相关资料
@@ -108,4 +109,5 @@ backend/data/uploaded_testsets/
 
 *.csv
 *.png
+
 
