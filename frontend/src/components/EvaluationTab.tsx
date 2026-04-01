@@ -139,22 +139,54 @@ const EvaluationTab: React.FC = () => {
     formData.append('file', file);
 
     try {
+      // 文件上传时不能设置 Content-Type，让浏览器自动设置 multipart/form-data
+      const token = localStorage.getItem('training_token');
+      const headers: HeadersInit = token ? {
+        'Authorization': `Bearer ${token}`
+      } : {};
+      
       const response = await fetch(`${API_ENDPOINTS.evaluation}/upload`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: headers,
         body: formData
       });
       
       if (response.ok) {
         const data = await response.json();
+        console.log('上传成功，返回数据:', data);
+        // 确保 label_distribution 的值是标准数字类型
+        const labelDist = data.label_distribution || {};
+        const safeLabelDistribution: Record<string, number> = {
+          '正面': Number(labelDist['正面']) || 0,
+          '负面': Number(labelDist['负面']) || 0,
+          '中性': Number(labelDist['中性']) || 0
+        };
+        const safeTotal = Number(data.total) || 0;
+        console.log('处理后的数据:', { total: safeTotal, label_distribution: safeLabelDistribution });
         setEvaluationDataInfo({
-          total: data.total,
-          label_distribution: data.label_distribution
+          total: safeTotal,
+          label_distribution: safeLabelDistribution
         });
-        alert(`成功上传 ${data.total} 条测试数据`);
+        alert(`成功上传 ${safeTotal} 条测试数据`);
       } else {
         const error = await response.json();
-        alert(error.detail || '上传失败');
+        console.error('上传错误:', error);
+        // 处理 422 验证错误（detail 是数组）
+        let errorMessage = '上传失败';
+        if (error.detail) {
+          if (Array.isArray(error.detail)) {
+            // 422 验证错误，detail 是对象数组
+            errorMessage = error.detail.map((err: any) => 
+              `${err.loc?.join('.')}: ${err.msg}`
+            ).join('; ');
+          } else if (typeof error.detail === 'string') {
+            errorMessage = error.detail;
+          } else if (typeof error.detail === 'object') {
+            // 如果是对象，转换为字符串
+            errorMessage = JSON.stringify(error.detail);
+          }
+        }
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('上传失败:', error);
@@ -186,10 +218,11 @@ const EvaluationTab: React.FC = () => {
             const statusResponse = await fetch(`${API_ENDPOINTS.evaluation}/status`);
             if (statusResponse.ok) {
               const statusData = await statusResponse.json();
+              console.log('评估状态:', statusData);
               setEvaluationStatus({
                 running: statusData.running,
-                progress: statusData.progress || 0,
-                total: statusData.total || 0,
+                progress: Number(statusData.progress) || 0,
+                total: Number(statusData.total) || 0,
                 current_analyzer: statusData.current_analyzer || '',
                 gpu_memory: statusData.gpu_memory
               });
@@ -258,7 +291,7 @@ const EvaluationTab: React.FC = () => {
           setEvaluationStatus({
             running: true,
             progress: 0,
-            total: data.total || 0,
+            total: Number(data.total) || 0,
             current_analyzer: 'hybrid'
           });
           setEvaluationResults(null);
@@ -271,10 +304,11 @@ const EvaluationTab: React.FC = () => {
               const statusResponse = await fetch(`${API_ENDPOINTS.evaluation}/status`);
               if (statusResponse.ok) {
                 const statusData = await statusResponse.json();
+                console.log('混合评估状态:', statusData);
                 setEvaluationStatus({
                   running: statusData.running,
-                  progress: statusData.progress || 0,
-                  total: statusData.total || 0,
+                  progress: Number(statusData.progress) || 0,
+                  total: Number(statusData.total) || 0,
                   current_analyzer: statusData.current_analyzer || '',
                   gpu_memory: statusData.gpu_memory
                 });
@@ -332,7 +366,14 @@ const EvaluationTab: React.FC = () => {
     
     setExportingEvaluation(true);
     try {
-      const response = await fetch(`${API_ENDPOINTS.evaluation}/export?format=csv`);
+      const token = localStorage.getItem('training_token');
+      const headers: HeadersInit = token ? {
+        'Authorization': `Bearer ${token}`
+      } : {};
+      
+      const response = await fetch(`${API_ENDPOINTS.evaluation}/export?format=csv`, {
+        headers: headers
+      });
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -341,17 +382,20 @@ const EvaluationTab: React.FC = () => {
           link.href = URL.createObjectURL(blob);
           link.download = data.filename;
           link.click();
-          alert('CSV导出成功');
+          alert('CSV 导出成功');
+        } else {
+          alert('导出失败：' + (data.message || '未知错误'));
         }
       } else {
         const error = await response.json();
-        alert('导出失败: ' + (error.detail || '未知错误'));
+        alert('导出失败：' + (error.detail || error.message || '未知错误'));
       }
     } catch (error) {
-      console.error('导出CSV失败:', error);
-      alert('导出失败，请重试');
+      console.error('导出 CSV 失败:', error);
+      alert('导出失败：' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      setExportingEvaluation(false);
     }
-    setExportingEvaluation(false);
   };
 
   // 生成评估对比图表
@@ -363,23 +407,33 @@ const EvaluationTab: React.FC = () => {
     
     setExportingEvaluation(true);
     try {
+      const token = localStorage.getItem('training_token');
+      const headers: HeadersInit = token ? {
+        'Authorization': `Bearer ${token}`
+      } : {};
+      
       const response = await fetch(`${API_ENDPOINTS.evaluation}/charts`, {
-        method: 'POST'
+        method: 'POST',
+        headers: headers
       });
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setEvaluationChartImage(`data:image/png;base64,${data.png_base64}`);
+          alert('图表生成成功');
+        } else {
+          alert('生成图表失败：' + (data.message || '未知错误'));
         }
       } else {
         const error = await response.json();
-        alert('生成图表失败: ' + (error.detail || '未知错误'));
+        alert('生成图表失败：' + (error.detail || error.message || '未知错误'));
       }
     } catch (error) {
       console.error('生成图表失败:', error);
-      alert('生成图表失败，请重试');
+      alert('生成图表失败：' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      setExportingEvaluation(false);
     }
-    setExportingEvaluation(false);
   };
 
   // 导出评估图表
@@ -458,9 +512,9 @@ const EvaluationTab: React.FC = () => {
             <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
               <p className="text-green-700 font-medium">已上传 {evaluationDataInfo.total} 条测试数据</p>
               <div className="flex gap-4 mt-2 text-sm text-green-600">
-                <span>正面: {evaluationDataInfo.label_distribution['正面'] || 0}</span>
-                <span>负面: {evaluationDataInfo.label_distribution['负面'] || 0}</span>
-                <span>中性: {evaluationDataInfo.label_distribution['中性'] || 0}</span>
+                <span>正面：{Number(evaluationDataInfo.label_distribution['正面']) || 0}</span>
+                <span>负面：{Number(evaluationDataInfo.label_distribution['负面']) || 0}</span>
+                <span>中性：{Number(evaluationDataInfo.label_distribution['中性']) || 0}</span>
               </div>
             </div>
           )}
@@ -479,7 +533,7 @@ const EvaluationTab: React.FC = () => {
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div 
                     className="bg-gradient-to-r from-purple-500 to-pink-400 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${(evaluationStatus.progress / evaluationStatus.total) * 100}%` }}
+                    style={{ width: `${evaluationStatus.total > 0 ? ((evaluationStatus.progress / evaluationStatus.total) * 100) : 0}%` }}
                   ></div>
                 </div>
                 <p className="text-sm text-gray-600 mt-2">
@@ -491,7 +545,7 @@ const EvaluationTab: React.FC = () => {
                       <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                       </svg>
-                      <span className="text-gray-600">GPU显存: <span className="font-semibold text-purple-600">{evaluationStatus.gpu_memory.current_mb.toFixed(0)} MB</span> (峰值: <span className="font-semibold">{evaluationStatus.gpu_memory.peak_mb.toFixed(0)} MB</span>)</span>
+                      <span className="text-gray-600">GPU 显存：<span className="font-semibold text-purple-600">{Number(evaluationStatus.gpu_memory.current_mb).toFixed(0)} MB</span> (峰值：<span className="font-semibold">{Number(evaluationStatus.gpu_memory.peak_mb).toFixed(0)} MB</span>)</span>
                     </div>
                   </div>
                 )}
@@ -844,8 +898,8 @@ const EvaluationTab: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-2 px-3 text-gray-600">
-                          {'confidence' in sample ? `${(sample.confidence! * 100).toFixed(1)}%` : 
-                           'score' in sample ? sample.score!.toFixed(2) : 
+                          {'confidence' in sample ? `${(Number(sample.confidence!) * 100).toFixed(1)}%` : 
+                           'score' in sample ? `${Number(sample.score!).toFixed(2)}` : 
                            'method' in sample ? `${sample.method || '-'}` : '-'}
                         </td>
                       </tr>
