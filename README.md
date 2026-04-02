@@ -2,10 +2,10 @@
 
 一个功能完整的中文情感分析平台，集成深度学习、情感词典、混合模型和外部 API 四种分析通道。支持模型训练、评估、消融实验、词典增强、模型量化等全流程研究。
 
-!\[Python]\(https\://img.shields.io/badge/Python-3.10-blue null)
-!\[FastAPI]\(https\://img.shields.io/badge/FastAPI-0.100+-green null)
-!\[React]\(https\://img.shields.io/badge/React-18-blue null)
-!\[PyTorch]\(https\://img.shields.io/badge/PyTorch-2.6-orange null)
+![Python](https://img.shields.io/badge/Python-3.10-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
+![React](https://img.shields.io/badge/React-18-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.6-orange)
 
 ## 功能特性
 
