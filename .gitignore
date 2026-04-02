@@ -113,3 +113,4 @@ backend/data/uploaded_testsets/
 
 data/lexicon/enhanced_positive_words.txt
 data/lexicon/enhanced_negative_words.txt
+data/lexicon/dataset_info.json
