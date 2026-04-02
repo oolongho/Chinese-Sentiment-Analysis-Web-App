@@ -111,4 +111,5 @@ backend/data/uploaded_testsets/
 *.csv
 *.png
 
-
+data/lexicon/enhanced_positive_words.txt
+data/lexicon/enhanced_negative_words.txt
