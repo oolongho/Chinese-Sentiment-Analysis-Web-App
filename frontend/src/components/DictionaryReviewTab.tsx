@@ -60,6 +60,8 @@ interface EnhancedStatus {
 }
 
 const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
+  const PAGE_SIZE = 20;
+  
   // 梯度提取状态
   const [extractionConfig, setExtractionConfig] = useState<ExtractionConfig>({
     model_type: 'FP32',
@@ -188,8 +190,8 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
     try {
       const params = new URLSearchParams({
         status: filterStatus,
-        limit: '20',
-        offset: String((currentPage - 1) * 20),
+        limit: String(PAGE_SIZE),
+        offset: String((currentPage - 1) * PAGE_SIZE),
         sort_by: 'extraction_count'
       });
       

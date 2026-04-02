@@ -111,7 +111,7 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
             <span className="text-sm font-medium text-gray-600">正面词典</span>
           </div>
           <div className="text-3xl font-bold text-gray-900">{dictionaryStats?.positive_count || 0}</div>
-          {(dictionaryStats?.enhanced_enabled && dictionaryStats?.enhanced_positive_count > 0) && (
+          {(dictionaryStats?.enhanced_enabled && (dictionaryStats?.enhanced_positive_count || 0) > 0) && (
             <div className="text-xs text-green-600 font-medium">
               +{dictionaryStats.enhanced_positive_count} 增强 · 共 {((dictionaryStats?.positive_count || 0) + (dictionaryStats?.enhanced_positive_count || 0))} 词
             </div>
@@ -127,7 +127,7 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
             <span className="text-sm font-medium text-gray-600">负面词典</span>
           </div>
           <div className="text-3xl font-bold text-gray-900">{dictionaryStats?.negative_count || 0}</div>
-          {(dictionaryStats?.enhanced_enabled && dictionaryStats?.enhanced_negative_count > 0) && (
+          {(dictionaryStats?.enhanced_enabled && (dictionaryStats?.enhanced_negative_count || 0) > 0) && (
             <div className="text-xs text-red-600 font-medium">
               +{dictionaryStats.enhanced_negative_count} 增强 · 共 {((dictionaryStats?.negative_count || 0) + (dictionaryStats?.enhanced_negative_count || 0))} 词
             </div>
