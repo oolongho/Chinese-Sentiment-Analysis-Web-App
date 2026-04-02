@@ -5,7 +5,6 @@ interface AblationResult {
   key: string;
   config: string;
   description: string;
-  sample_count: number;
   accuracy: number;
   precision: number;
   recall: number;
@@ -22,12 +21,14 @@ const STORAGE_KEY = 'ablation_study_results';
 const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
   const [config, setConfig] = useState({
     enable_negation: true,
+    enable_enhanced: true,
     enable_degree: true,
     enable_pattern: true,
     enable_dynamic_threshold: true
   });
   
   const [file, setFile] = useState<File | null>(null);
+  const [fileInfo, setFileInfo] = useState<{ count: number; label_distribution?: Record<string, number> } | null>(null);
   const [results, setResults] = useState<AblationResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastTestTime, setLastTestTime] = useState<string>('');
@@ -67,10 +68,58 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
     localStorage.removeItem(STORAGE_KEY);
     setResults([]);
     setLastTestTime('');
+    setFile(null);
+    setFileInfo(null);
     alert('缓存已清除');
   };
 
-  // 获取token
+  // 处理文件上传
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const token = localStorage.getItem('training_token');
+      const headers: HeadersInit = token ? {
+        'Authorization': `Bearer ${token}`
+      } : {};
+      
+      const response = await fetch(`${API_ENDPOINTS.training}/upload-data`, {
+        method: 'POST',
+        headers: headers,
+        body: formData
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const labelDist = data.label_distribution || {};
+        const safeLabelDistribution: Record<string, number> = {
+          '正面': Number(labelDist['正面']) || 0,
+          '负面': Number(labelDist['负面']) || 0,
+          '中性': Number(labelDist['中性']) || 0
+        };
+        const safeCount = Number(data.count) || 0;
+        
+        setFile(file);
+        setFileInfo({
+          count: safeCount,
+          label_distribution: safeLabelDistribution
+        });
+        alert(`成功上传 ${safeCount} 条数据`);
+      } else {
+        const error = await response.json();
+        alert(`上传失败：${error.detail || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('上传失败:', error);
+      alert('上传失败，请重试');
+    }
+  };
+
+  // 获取 token
   const getAuthHeader = () => {
     return { Authorization: `Bearer ${token}` };
   };
@@ -107,7 +156,6 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
         key: 'current',
         config: '当前配置',
         description: getConfigDescription(config),
-        sample_count: data.sample_count,
         accuracy: data.accuracy,
         precision: data.precision,
         recall: data.recall,
@@ -134,30 +182,35 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
     setResults([]);
     
     const configs = [
-      { 
-        name: 'C0_Baseline', 
-        desc: '基础词典（无优化）', 
-        config: { enable_negation: false, enable_degree: false, enable_pattern: false, enable_dynamic_threshold: false } 
+      {
+        name: 'C0_Baseline',
+        desc: '基础词典（无优化）',
+        config: { enable_negation: false, enable_degree: false, enable_pattern: false, enable_dynamic_threshold: false, enable_enhanced: false }
       },
-      { 
-        name: 'C1_Negation', 
-        desc: '+否定词处理', 
-        config: { enable_negation: true, enable_degree: false, enable_pattern: false, enable_dynamic_threshold: false } 
+      {
+        name: 'C1_Enhanced',
+        desc: '+增强词典（梯度提取词）',
+        config: { enable_negation: false, enable_degree: false, enable_pattern: false, enable_dynamic_threshold: false, enable_enhanced: true }
       },
-      { 
-        name: 'C2_Degree', 
-        desc: '+程度副词加权', 
-        config: { enable_negation: true, enable_degree: true, enable_pattern: false, enable_dynamic_threshold: false } 
+      {
+        name: 'C2_Negation',
+        desc: '+否定词处理',
+        config: { enable_negation: true, enable_degree: false, enable_pattern: false, enable_dynamic_threshold: false, enable_enhanced: false }
       },
-      { 
-        name: 'C3_Pattern', 
-        desc: '+特殊搭配模式', 
-        config: { enable_negation: true, enable_degree: true, enable_pattern: true, enable_dynamic_threshold: false } 
+      {
+        name: 'C3_Degree',
+        desc: '+程度副词加权',
+        config: { enable_negation: true, enable_degree: true, enable_pattern: false, enable_dynamic_threshold: false, enable_enhanced: false }
       },
-      { 
-        name: 'C4_Full', 
-        desc: '完整系统（+动态阈值）', 
-        config: { enable_negation: true, enable_degree: true, enable_pattern: true, enable_dynamic_threshold: true } 
+      {
+        name: 'C4_Pattern',
+        desc: '+特殊搭配模式',
+        config: { enable_negation: true, enable_degree: true, enable_pattern: true, enable_dynamic_threshold: false, enable_enhanced: false }
+      },
+      {
+        name: 'C5_Full',
+        desc: '完整系统（+动态阈值）',
+        config: { enable_negation: true, enable_degree: true, enable_pattern: true, enable_dynamic_threshold: true, enable_enhanced: false }
       }
     ];
     
@@ -195,7 +248,6 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
           key: cfg.name,
           config: cfg.name,
           description: cfg.desc,
-          sample_count: data.sample_count,
           accuracy: data.accuracy,
           precision: data.precision,
           recall: data.recall,
@@ -230,9 +282,9 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
     }
     
     const csvContent = [
-      ['配置', '描述', '样本数', '准确率', '精确率', '召回率', 'F1值', '相对提升'].join(','),
+      ['配置', '描述', '准确率', '精确率', '召回率', 'F1值', '相对提升'].join(','),
       ...results.map(r => [
-        r.config, r.description, r.sample_count,
+        r.config, r.description,
         `${r.accuracy}%`, `${r.precision}%`, `${r.recall}%`, `${r.f1_score}%`,
         r.improvement
       ].join(','))
@@ -346,7 +398,7 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
           <div>
             <h4 className="text-lg font-semibold text-gray-900 mb-1">消融实验</h4>
             <p className="text-gray-600 text-sm">
-              通过开关控制不同的优化模块，测试各模块对情感分析准确率的贡献。支持手动测试单个配置，或一键运行完整的5配置对比实验。
+              通过开关控制不同的优化模块，测试各模块对情感分析准确率的贡献。支持手动测试单个配置，或一键运行完整的6配置对比实验。
             </p>
           </div>
         </div>
@@ -354,7 +406,7 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
       
       <div className="bg-white rounded-2xl p-6 border border-gray-200">
         <h4 className="text-lg font-semibold text-gray-900 mb-4">配置开关</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <label className="flex items-center space-x-3 cursor-pointer">
             <input
               type="checkbox"
@@ -363,6 +415,15 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
               className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
             />
             <span className="text-gray-700">否定词处理</span>
+          </label>
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.enable_enhanced}
+              onChange={(e) => setConfig({...config, enable_enhanced: e.target.checked})}
+              className="w-5 h-5 text-green-600 rounded focus:ring-green-500"
+            />
+            <span className="text-gray-700">增强词典</span>
           </label>
           <label className="flex items-center space-x-3 cursor-pointer">
             <input
@@ -402,14 +463,26 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
               <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <p className="text-gray-600 font-medium">点击上传测试数据集</p>
-              <p className="text-gray-400 text-sm mt-1">支持 .xlsx, .xls 格式</p>
-              {file && <p className="text-green-600 font-medium mt-2 text-sm">已选择: {file.name}</p>}
+              {fileInfo ? (
+                <div className="p-3 bg-green-50 rounded-xl border border-green-200">
+                  <p className="text-green-700 font-medium text-sm">已上传 {fileInfo.count} 条数据</p>
+                  <div className="flex gap-3 mt-1 text-xs text-green-600 justify-center">
+                    <span>正面：{fileInfo.label_distribution?.['正面'] || 0}</span>
+                    <span>负面：{fileInfo.label_distribution?.['负面'] || 0}</span>
+                    <span>中性：{fileInfo.label_distribution?.['中性'] || 0}</span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-gray-600 font-medium">点击上传测试数据集</p>
+                  <p className="text-gray-400 text-sm mt-1">支持 .xlsx, .xls 格式</p>
+                </>
+              )}
             </div>
             <input
               type="file"
               accept=".xlsx,.xls"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={handleFileChange}
               className="hidden"
             />
           </label>
@@ -527,7 +600,6 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
                 <tr>
                   <th className="py-3 px-4 text-left font-semibold text-gray-700">配置</th>
                   <th className="py-3 px-4 text-left font-semibold text-gray-700">描述</th>
-                  <th className="py-3 px-4 text-left font-semibold text-gray-700">样本数</th>
                   <th className="py-3 px-4 text-left font-semibold text-gray-700">准确率</th>
                   <th className="py-3 px-4 text-left font-semibold text-gray-700">精确率</th>
                   <th className="py-3 px-4 text-left font-semibold text-gray-700">召回率</th>
@@ -540,7 +612,6 @@ const AblationStudyTab: React.FC<AblationStudyTabProps> = ({ token }) => {
                   <tr key={result.key} className="hover:bg-gray-50">
                     <td className="py-3 px-4 font-medium text-gray-900">{result.config}</td>
                     <td className="py-3 px-4 text-gray-600">{result.description}</td>
-                    <td className="py-3 px-4 text-gray-600">{result.sample_count}</td>
                     <td className="py-3 px-4">
                       <span className="font-semibold text-purple-600">{result.accuracy}%</span>
                     </td>

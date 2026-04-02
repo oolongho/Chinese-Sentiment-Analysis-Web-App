@@ -47,6 +47,9 @@ interface DictionaryStats {
   negative_count: number;
   degree_count: number;
   negation_count: number;
+  enhanced_positive_count?: number;   // 新增
+  enhanced_negative_count?: number;   // 新增
+  enhanced_enabled?: boolean;         // 新增
 }
 
 interface Statistics {
@@ -255,7 +258,7 @@ const PerformancePage: React.FC = () => {
   };
   const currentUsage = stats?.current_usage || { cpu_percent: 0, gpu_percent: null, gpu_available: false };
   const gpuMemory = stats?.gpu_memory || { total_mb: 0, used_mb: 0, free_mb: 0, percent: 0, allocated_mb: 0, reserved_mb: 0, gpu_name: '' };
-  const dictStats = dictionaryStats || { positive_count: 0, negative_count: 0, degree_count: 0, negation_count: 0 };
+  const dictStats = dictionaryStats || { positive_count: 0, negative_count: 0, degree_count: 0, negation_count: 0, enhanced_positive_count: 0, enhanced_negative_count: 0, enhanced_enabled: false };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-orange-50 py-12 px-4">
@@ -319,6 +322,11 @@ const PerformancePage: React.FC = () => {
                   <span className="text-sm font-medium text-gray-600">正面词典</span>
                 </div>
                 <div className="text-3xl font-bold text-gray-900">{dictStats.positive_count}</div>
+                {(dictStats?.enhanced_enabled && dictStats?.enhanced_positive_count > 0) && (
+                  <div className="text-xs text-green-600 font-medium">
+                    +{dictStats.enhanced_positive_count} 增强 · 共 {((dictStats.positive_count || 0) + (dictStats.enhanced_positive_count || 0))} 词
+                  </div>
+                )}
               </div>
               <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-5 border border-red-100 hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center gap-3 mb-2">
@@ -330,6 +338,11 @@ const PerformancePage: React.FC = () => {
                   <span className="text-sm font-medium text-gray-600">负面词典</span>
                 </div>
                 <div className="text-3xl font-bold text-gray-900">{dictStats.negative_count}</div>
+                {(dictStats?.enhanced_enabled && dictStats?.enhanced_negative_count > 0) && (
+                  <div className="text-xs text-red-600 font-medium">
+                    +{dictStats.enhanced_negative_count} 增强 · 共 {((dictStats.negative_count || 0) + (dictStats.enhanced_negative_count || 0))} 词
+                  </div>
+                )}
               </div>
               <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 border border-blue-100 hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center gap-3 mb-2">

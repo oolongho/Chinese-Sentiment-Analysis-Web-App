@@ -432,8 +432,21 @@ const QuantizationContent: React.FC = () => {
                 <svg className="w-8 h-8 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                <p className="text-gray-600 font-medium text-sm">点击上传测试数据集</p>
-                <p className="text-gray-400 text-xs mt-1">支持 .xlsx, .xls 格式</p>
+                {testsetDataInfo ? (
+                  <div className="p-3 bg-green-50 rounded-xl border border-green-200">
+                    <p className="text-green-700 font-medium text-sm">已上传 {testsetDataInfo.total} 条测试数据</p>
+                    <div className="flex gap-3 mt-1 text-xs text-green-600 justify-center">
+                      <span>正面：{testsetDataInfo.label_distribution['正面'] || 0}</span>
+                      <span>负面：{testsetDataInfo.label_distribution['负面'] || 0}</span>
+                      <span>中性：{testsetDataInfo.label_distribution['中性'] || 0}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-gray-600 font-medium text-sm">点击上传测试数据集</p>
+                    <p className="text-gray-400 text-xs mt-1">支持 .xlsx, .xls 格式</p>
+                  </>
+                )}
               </div>
               <input
                 type="file"
@@ -443,16 +456,6 @@ const QuantizationContent: React.FC = () => {
                 disabled={loading}
               />
             </label>
-            {testsetDataInfo && (
-              <div className="mt-3 p-3 bg-green-50 rounded-xl border border-green-200">
-                <p className="text-green-700 font-medium text-sm">已上传 {testsetDataInfo.total} 条测试数据</p>
-                <div className="flex gap-3 mt-1 text-xs text-green-600">
-                  <span>正面：{testsetDataInfo.label_distribution['正面'] || 0}</span>
-                  <span>负面：{testsetDataInfo.label_distribution['负面'] || 0}</span>
-                  <span>中性：{testsetDataInfo.label_distribution['中性'] || 0}</span>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

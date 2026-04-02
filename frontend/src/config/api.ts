@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
   training: `${API_BASE_URL}/api/training`,
   performance: `${API_BASE_URL}/api/performance`,
   evaluation: `${API_BASE_URL}/api/evaluation`,
+  dictionary: `${API_BASE_URL}/api/dictionary`,
   api: `${API_BASE_URL}/api`,
 };
 

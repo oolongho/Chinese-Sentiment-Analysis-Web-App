@@ -10,6 +10,9 @@ interface DictionaryStats {
   negative_count: number;
   degree_count: number;
   negation_count: number;
+  enhanced_positive_count?: number;   // 新增
+  enhanced_negative_count?: number;   // 新增
+  enhanced_enabled?: boolean;         // 新增
 }
 
 interface DictionaryTabProps {
@@ -108,6 +111,11 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
             <span className="text-sm font-medium text-gray-600">正面词典</span>
           </div>
           <div className="text-3xl font-bold text-gray-900">{dictionaryStats?.positive_count || 0}</div>
+          {(dictionaryStats?.enhanced_enabled && dictionaryStats?.enhanced_positive_count > 0) && (
+            <div className="text-xs text-green-600 font-medium">
+              +{dictionaryStats.enhanced_positive_count} 增强 · 共 {((dictionaryStats?.positive_count || 0) + (dictionaryStats?.enhanced_positive_count || 0))} 词
+            </div>
+          )}
         </div>
         <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-5 border border-red-100 hover:shadow-lg transition-all duration-300">
           <div className="flex items-center gap-3 mb-2">
@@ -119,6 +127,11 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
             <span className="text-sm font-medium text-gray-600">负面词典</span>
           </div>
           <div className="text-3xl font-bold text-gray-900">{dictionaryStats?.negative_count || 0}</div>
+          {(dictionaryStats?.enhanced_enabled && dictionaryStats?.enhanced_negative_count > 0) && (
+            <div className="text-xs text-red-600 font-medium">
+              +{dictionaryStats.enhanced_negative_count} 增强 · 共 {((dictionaryStats?.negative_count || 0) + (dictionaryStats?.enhanced_negative_count || 0))} 词
+            </div>
+          )}
         </div>
         <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 border border-blue-100 hover:shadow-lg transition-all duration-300">
           <div className="flex items-center gap-3 mb-2">

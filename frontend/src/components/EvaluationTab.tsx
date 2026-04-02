@@ -455,41 +455,6 @@ const EvaluationTab: React.FC = () => {
       <h3 className="text-xl font-bold text-gray-900 mb-2">模型评估</h3>
       <p className="text-gray-500 text-sm mb-6">上传测试数据集，评估各分析器的准确率、精确率、召回率、F1分数等指标。</p>
       
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-100 mb-6">
-        <div className="flex items-start gap-3">
-          <svg className="w-6 h-6 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div>
-            <h4 className="text-lg font-semibold text-gray-900 mb-1">数据格式要求</h4>
-            <p className="text-gray-600 text-sm mb-2">
-              Excel 文件，必须包含"文本"和"标签"两列，标签值为：正面、负面、中性
-            </p>
-            <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="py-2 px-3 text-left font-medium text-gray-700">列名</th>
-                  <th className="py-2 px-3 text-left font-medium text-gray-700">说明</th>
-                  <th className="py-2 px-3 text-left font-medium text-gray-700">示例</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-t border-gray-200">
-                  <td className="py-2 px-3 font-medium text-gray-900">文本</td>
-                  <td className="py-2 px-3 text-gray-600">待分析的文本内容</td>
-                  <td className="py-2 px-3 text-gray-500">质量很好，物流很快</td>
-                </tr>
-                <tr className="border-t border-gray-200">
-                  <td className="py-2 px-3 font-medium text-gray-900">标签</td>
-                  <td className="py-2 px-3 text-gray-600">真实情感标签</td>
-                  <td className="py-2 px-3 text-gray-500">正面</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
       <div className="grid md:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl p-6 border border-gray-200">
           <h4 className="text-lg font-semibold text-gray-900 mb-4">1. 上传测试数据</h4>
@@ -498,8 +463,21 @@ const EvaluationTab: React.FC = () => {
               <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              <p className="text-gray-600 font-medium">点击上传测试数据集</p>
-              <p className="text-gray-400 text-sm mt-1">支持 .xlsx, .xls 格式</p>
+              {evaluationDataInfo ? (
+                <div className="p-3 bg-green-50 rounded-xl border border-green-200">
+                  <p className="text-green-700 font-medium text-sm">已上传 {evaluationDataInfo.total} 条数据</p>
+                  <div className="flex gap-3 mt-1 text-xs text-green-600 justify-center">
+                    <span>正面：{Number(evaluationDataInfo.label_distribution?.['正面']) || 0}</span>
+                    <span>负面：{Number(evaluationDataInfo.label_distribution?.['负面']) || 0}</span>
+                    <span>中性：{Number(evaluationDataInfo.label_distribution?.['中性']) || 0}</span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-gray-600 font-medium">点击上传测试数据集</p>
+                  <p className="text-gray-400 text-sm mt-1">支持 .xlsx, .xls 格式</p>
+                </>
+              )}
             </div>
             <input
               type="file"
@@ -508,16 +486,7 @@ const EvaluationTab: React.FC = () => {
               className="hidden"
             />
           </label>
-          {evaluationDataInfo && (
-            <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
-              <p className="text-green-700 font-medium">已上传 {evaluationDataInfo.total} 条测试数据</p>
-              <div className="flex gap-4 mt-2 text-sm text-green-600">
-                <span>正面：{Number(evaluationDataInfo.label_distribution['正面']) || 0}</span>
-                <span>负面：{Number(evaluationDataInfo.label_distribution['负面']) || 0}</span>
-                <span>中性：{Number(evaluationDataInfo.label_distribution['中性']) || 0}</span>
-              </div>
-            </div>
-          )}
+          <p className="text-gray-500 mt-3 text-sm">文件需包含"文本"和"标签"两列，标签为"正面"/"负面"/"中性"</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 border border-gray-200">

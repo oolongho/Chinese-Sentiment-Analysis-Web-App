@@ -65,6 +65,8 @@ export interface TrainingParams {
   max_length: number;
   warmup_ratio: number;
   weight_decay: number;
+  label_smoothing_factor: number;
+  lr_scheduler_type: string;
 }
 
 export interface TrainingStatus {
@@ -118,6 +120,14 @@ export interface ExternalApiConfig {
   audio_api_key: string;
   audio_base_url: string;
   audio_model: string;
+}
+
+export interface UploadedData {
+  uploaded: boolean;
+  count: number;
+  filepath?: string;
+  is_default?: boolean;
+  label_distribution?: Record<string, number>;
 }
 
 // Tab 类型

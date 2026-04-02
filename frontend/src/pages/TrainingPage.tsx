@@ -6,6 +6,7 @@ import EvaluationTab from '../components/EvaluationTab';
 import ExternalApiTab from '../components/ExternalApiTab';
 import DictionaryTab from '../components/DictionaryTab';
 import QuantizationContent from '../components/QuantizationContent';
+import DictionaryReviewTab from '../components/DictionaryReviewTab';
 import {
   type TrainingParams,
   type TrainingStatus,
@@ -21,14 +22,16 @@ const TrainingPage: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'training' | 'dictionary' | 'external' | 'evaluation' | 'ablation' | 'quantization'>('external');
+  const [activeTab, setActiveTab] = useState<'training' | 'dictionary' | 'external' | 'evaluation' | 'ablation' | 'quantization' | 'fusion-training'>('external');
   const [params, setParams] = useState<TrainingParams>({
     epochs: 3,
     batch_size: 16,
     learning_rate: 2e-5,
     max_length: 128,
     warmup_ratio: 0.1,
-    weight_decay: 0.01
+    weight_decay: 0.01,
+    label_smoothing_factor: 0.1,
+    lr_scheduler_type: 'cosine'
   });
   
   const [uploadedData, setUploadedData] = useState<UploadedData>({ uploaded: false, count: 0 });
@@ -450,7 +453,7 @@ const TrainingPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">管理平台</h1>
-              <p className="text-gray-500">模型训练、情感词典、外部API、评估、消融实验、量化</p>
+              <p className="text-gray-500">模型与词典管理</p>
             </div>
           </div>
           
@@ -555,6 +558,21 @@ const TrainingPage: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 量化实验
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('fusion-training')}
+              className={`flex-1 py-4 px-6 font-semibold transition-all duration-300 ${
+                activeTab === 'fusion-training'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-400 text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+                融合训练
               </div>
             </button>
           </div>
@@ -789,58 +807,100 @@ const TrainingPage: React.FC = () => {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <h4 className="text-lg font-semibold text-gray-900">训练参数配置</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-gray-700 font-medium mb-2 text-sm">训练轮数</label>
+                        <label className="block text-gray-700 font-medium mb-1.5 text-sm">训练轮数</label>
                         <input
                           type="number"
                           value={params.epochs}
                           onChange={(e) => setParams({ ...params, epochs: parseInt(e.target.value) || 1 })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
+                          className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
                         />
                       </div>
                       <div>
-                        <label className="block text-gray-700 font-medium mb-2 text-sm">批次大小</label>
+                        <label className="block text-gray-700 font-medium mb-1.5 text-sm">批次大小</label>
                         <input
                           type="number"
                           value={params.batch_size}
                           onChange={(e) => setParams({ ...params, batch_size: parseInt(e.target.value) || 1 })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
+                          className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
                         />
                       </div>
                       <div>
-                        <label className="block text-gray-700 font-medium mb-2 text-sm">学习率</label>
+                        <label className="block text-gray-700 font-medium mb-1.5 text-sm">学习率</label>
                         <input
                           type="text"
                           value={params.learning_rate}
                           onChange={(e) => setParams({ ...params, learning_rate: parseFloat(e.target.value) || 0 })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
+                          className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
                         />
                       </div>
                       <div>
-                        <label className="block text-gray-700 font-medium mb-2 text-sm">最大序列长度</label>
+                        <label className="block text-gray-700 font-medium mb-1.5 text-sm">最大序列长度</label>
                         <input
                           type="number"
                           value={params.max_length}
                           onChange={(e) => setParams({ ...params, max_length: parseInt(e.target.value) || 1 })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
+                          className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
                         />
                       </div>
+                      <div>
+                        <label className="block text-gray-700 font-medium mb-1.5 text-sm">Warmup 比例</label>
+                        <input
+                          type="text"
+                          value={params.warmup_ratio}
+                          onChange={(e) => setParams({ ...params, warmup_ratio: parseFloat(e.target.value) || 0 })}
+                          className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-700 font-medium mb-1.5 text-sm">权重衰减</label>
+                        <input
+                          type="text"
+                          value={params.weight_decay}
+                          onChange={(e) => setParams({ ...params, weight_decay: parseFloat(e.target.value) || 0 })}
+                          className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-700 font-medium mb-1.5 text-sm">Label Smoothing</label>
+                        <input
+                          type="text"
+                          value={params.label_smoothing_factor}
+                          onChange={(e) => setParams({ ...params, label_smoothing_factor: Math.min(0.5, Math.max(0, parseFloat(e.target.value) || 0)) })}
+                          className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-700 font-medium mb-1.5 text-sm">学习率调度</label>
+                        <select
+                          value={params.lr_scheduler_type}
+                          onChange={(e) => setParams({ ...params, lr_scheduler_type: e.target.value })}
+                          className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300 bg-white"
+                        >
+                          <option value="cosine">Cosine</option>
+                          <option value="linear">Linear</option>
+                          <option value="cosine_with_restarts">Cosine Restart</option>
+                          <option value="polynomial">Polynomial</option>
+                          <option value="constant">Constant</option>
+                        </select>
+                      </div>
                     </div>
+
                     <button
                       onClick={updateParams}
                       disabled={loading}
-                      className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all duration-300"
+                      className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-400 hover:from-purple-600 hover:to-pink-500 text-white font-medium rounded-xl transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      保存参数
+                      {loading ? '保存中...' : '保存参数'}
                     </button>
                   </div>
 
                   <div className="space-y-4">
                     <h4 className="text-lg font-semibold text-gray-900">训练数据</h4>
                     <div
-                      className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-300 cursor-pointer ${
-                        isDragging ? 'border-purple-400 bg-purple-50' : 'border-gray-300 hover:border-purple-400'
+                      className={`border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-all duration-300 ${
+                        isDragging ? 'border-purple-400 bg-purple-50' : ''
                       }`}
                       onDragOver={handleDragOver}
                       onDragLeave={handleDragLeave}
@@ -854,61 +914,26 @@ const TrainingPage: React.FC = () => {
                         accept=".xlsx,.xls"
                         onChange={handleFileSelect}
                       />
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-                        <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                      </div>
-                      <p className="text-gray-600 text-sm">点击或拖拽上传 Excel 文件</p>
-                      <p className="text-xs text-gray-400 mt-1">支持 .xlsx, .xls 格式</p>
-                    </div>
-                    
-                    {uploadedData.uploaded && (
-                      <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-                        <div className="flex items-center gap-2 text-green-700">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span className="font-medium">已准备 {uploadedData.count} 条数据</span>
-                          {uploadedData.is_default && <span className="text-xs text-gray-500">(默认数据)</span>}
+                      <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      {uploadedData.uploaded ? (
+                        <div className="p-3 bg-green-50 rounded-xl border border-green-200">
+                          <p className="text-green-700 font-medium text-sm">已上传 {uploadedData.count} 条数据</p>
+                          <div className="flex gap-3 mt-1 text-xs text-green-600 justify-center">
+                            <span>正面：{uploadedData.label_distribution?.['正面'] || 0}</span>
+                            <span>负面：{uploadedData.label_distribution?.['负面'] || 0}</span>
+                            <span>中性：{uploadedData.label_distribution?.['中性'] || 0}</span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-100">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    数据格式要求
-                  </h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 px-3 text-gray-700">列名</th>
-                          <th className="text-left py-2 px-3 text-gray-700">说明</th>
-                          <th className="text-left py-2 px-3 text-gray-700">是否必需</th>
-                          <th className="text-left py-2 px-3 text-gray-700">示例</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="border-b border-gray-100">
-                          <td className="py-2 px-3 font-medium text-gray-900">文本</td>
-                          <td className="py-2 px-3 text-gray-600">待分析的文本内容</td>
-                          <td className="py-2 px-3"><span className="text-green-600 font-medium">必需</span></td>
-                          <td className="py-2 px-3 text-gray-500">质量很好，物流很快</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2 px-3 font-medium text-gray-900">标签</td>
-                          <td className="py-2 px-3 text-gray-600">情感标签</td>
-                          <td className="py-2 px-3"><span className="text-green-600 font-medium">必需</span></td>
-                          <td className="py-2 px-3 text-gray-500">正面 / 负面 / 中性</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                      ) : (
+                        <>
+                          <p className="text-gray-600 font-medium">点击或拖拽上传 Excel 文件</p>
+                          <p className="text-gray-400 text-sm mt-1">支持 .xlsx, .xls 格式</p>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-gray-500 text-sm">文件需包含"文本"和"标签"两列，标签为"正面"/"负面"/"中性"</p>
                   </div>
                 </div>
 
@@ -951,6 +976,8 @@ const TrainingPage: React.FC = () => {
             {activeTab === 'evaluation' && <EvaluationTab />}
 
             {activeTab === 'quantization' && <QuantizationContent />}
+
+            {activeTab === 'fusion-training' && <DictionaryReviewTab token={token} />}
           </div>
         </div>
       </div>
