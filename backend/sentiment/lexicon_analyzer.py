@@ -16,7 +16,7 @@ from typing import Dict, List, Tuple, Set
 from functools import lru_cache
 from sentiment.logger import get_logger
 
-DICT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data')
+DICT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'lexicon')
 
 # 获取日志记录器
 logger = get_logger('lexicon_analyzer')
@@ -41,7 +41,8 @@ class LexiconAnalyzer:
             'enable_negation': True,
             'enable_degree': True,
             'enable_pattern': True,
-            'enable_dynamic_threshold': True
+            'enable_dynamic_threshold': True,
+            'enable_enhanced': False,  # 是否启用增强词典
         }
         
         self.positive_words: Dict[str, int] = {}
@@ -49,7 +50,8 @@ class LexiconAnalyzer:
         self.degree_words: Dict[str, float] = {}
         self.negation_words: List[str] = []
         self.stop_words: Set[str] = set()  # 改为集合，提高查找效率
-        
+        self.enhanced_word_count = 0  # 增强词典词数
+
         self._load_dictionaries()
     
     def _load_dictionaries(self):
@@ -64,7 +66,7 @@ class LexiconAnalyzer:
         """加载情感词典"""
         pos_file = os.path.join(DICT_DIR, 'positive_words.txt')
         neg_file = os.path.join(DICT_DIR, 'negative_words.txt')
-        
+
         if os.path.exists(pos_file):
             with open(pos_file, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -73,7 +75,7 @@ class LexiconAnalyzer:
                         word, score = line.rsplit(',', 1)
                         self.positive_words[word] = int(float(score))
             logger.info(f"加载正面词典: {len(self.positive_words)} 个词")
-        
+
         if os.path.exists(neg_file):
             with open(neg_file, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -82,6 +84,39 @@ class LexiconAnalyzer:
                         word, score = line.rsplit(',', 1)
                         self.negative_words[word] = int(float(score))
             logger.info(f"加载负面词典: {len(self.negative_words)} 个词")
+
+        # 加载增强词典（可选）
+        if self.config.get('enable_enhanced', False):
+            enhanced_pos_file = os.path.join(DICT_DIR, 'enhanced_positive_words.txt')
+            enhanced_neg_file = os.path.join(DICT_DIR, 'enhanced_negative_words.txt')
+
+            enhanced_pos_count = 0
+            enhanced_neg_count = 0
+
+            if os.path.exists(enhanced_pos_file):
+                with open(enhanced_pos_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if ',' in line:
+                            word, score = line.rsplit(',', 1)
+                            if word not in self.positive_words:  # 避免重复覆盖原词分数
+                                self.positive_words[word] = int(float(score))
+                                enhanced_pos_count += 1
+
+            if os.path.exists(enhanced_neg_file):
+                with open(enhanced_neg_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if ',' in line:
+                            word, score = line.rsplit(',', 1)
+                            if word not in self.negative_words:
+                                self.negative_words[word] = int(float(score))
+                                enhanced_neg_count += 1
+
+            logger.info(f"加载增强词典: +{enhanced_pos_count} 正面词, +{enhanced_neg_count} 负面词")
+            self.enhanced_word_count = enhanced_pos_count + enhanced_neg_count
+        else:
+            self.enhanced_word_count = 0
     
     def _load_degree_words(self):
         """
@@ -561,6 +596,7 @@ class LexiconAnalyzer:
         self.degree_words.clear()
         self.negation_words.clear()
         self.stop_words.clear()
+        self.enhanced_word_count = 0
         
         # 重新加载
         self._load_dictionaries()
@@ -569,7 +605,7 @@ class LexiconAnalyzer:
     def get_cache_info(self) -> Dict:
         """
         获取缓存信息
-        
+
         Returns:
             缓存统计信息
         """
@@ -580,6 +616,14 @@ class LexiconAnalyzer:
             'maxsize': info.maxsize,
             'currsize': info.currsize,
         }
+
+    def is_enhanced_enabled(self) -> bool:
+        """查询增强词典是否启用"""
+        return self.config.get('enable_enhanced', False)
+
+    def get_enhanced_count(self) -> int:
+        """获取增强词典词数"""
+        return self.enhanced_word_count
 
 
 def test_analyzer():

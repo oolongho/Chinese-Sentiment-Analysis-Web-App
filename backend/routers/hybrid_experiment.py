@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import time
 
-from sentiment.lexicon_analyzer import LexiconAnalyzer
+from sentiment import get_lexicon_analyzer
 from sentiment.model_analyzer import ModelAnalyzer
 from sentiment.hybrid_analyzer import HybridAnalyzer, HybridStrategy
 from utils.auth import get_current_user
@@ -65,8 +65,8 @@ async def compare_sentiment_methods(request: ComparisonRequest, _: bool = Depend
         if not request.texts:
             raise HTTPException(status_code=400, detail="文本列表不能为空")
         
-        # 初始化三个分析器
-        lexicon_analyzer = LexiconAnalyzer()
+        # 初始化三个分析器（使用单例模式）
+        lexicon_analyzer = get_lexicon_analyzer()
         model_analyzer = ModelAnalyzer(precision="FP32")
         hybrid_analyzer = HybridAnalyzer(strategy=HybridStrategy.CASCADE)
         

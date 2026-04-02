@@ -105,7 +105,7 @@ class BatchExternalAnalysisResponse(BaseModel):
 
 class HybridAnalysisRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=MAX_TEXT_LENGTH)
-    strategy: str = Field(default="cascade", description="混合策略：cascade, weighted, rule_based")
+    strategy: str = Field(default="cascade", description="混合策略：cascade, weighted, rule_based, enhanced_cascade, adaptive")
     config: Optional[Dict] = Field(default=None, description="可选配置参数")
 
 

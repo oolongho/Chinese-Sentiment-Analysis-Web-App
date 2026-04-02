@@ -203,7 +203,11 @@ def _train_model_core(
     learning_rate: float = 2e-5,
     max_length: int = 128,
     data_file: str = None,
-    progress_callback: Callable = None
+    progress_callback: Callable = None,
+    warmup_ratio: float = 0.1,
+    weight_decay: float = 0.01,
+    label_smoothing_factor: float = 0.1,
+    lr_scheduler_type: str = 'cosine'
 ) -> Tuple[Trainer, AutoTokenizer, Dict]:
     """核心训练函数，封装所有训练逻辑"""
     
@@ -282,13 +286,15 @@ def _train_model_core(
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         learning_rate=learning_rate,
-        weight_decay=0.01,
+        weight_decay=weight_decay,
         eval_strategy='epoch',
         save_strategy='epoch',
         load_best_model_at_end=True,
         metric_for_best_model='f1',
         greater_is_better=True,
-        warmup_ratio=0.1,
+        warmup_ratio=warmup_ratio,
+        lr_scheduler_type=lr_scheduler_type,
+        label_smoothing_factor=label_smoothing_factor,
         logging_dir=os.path.join(output_dir, 'logs'),
         logging_steps=50,
         save_total_limit=2,
@@ -353,7 +359,11 @@ def train_model_with_callback(
     batch_size: int = 16,
     learning_rate: float = 2e-5,
     max_length: int = 128,
-    progress_callback: Callable = None
+    progress_callback: Callable = None,
+    warmup_ratio: float = 0.1,
+    weight_decay: float = 0.01,
+    label_smoothing_factor: float = 0.1,
+    lr_scheduler_type: str = 'cosine'
 ) -> Dict:
     """带进度回调的训练模型函数，供外部调用"""
     trainer, tokenizer, metrics = _train_model_core(
@@ -364,7 +374,11 @@ def train_model_with_callback(
         learning_rate=learning_rate,
         max_length=max_length,
         data_file=data_file,
-        progress_callback=progress_callback
+        progress_callback=progress_callback,
+        warmup_ratio=warmup_ratio,
+        weight_decay=weight_decay,
+        label_smoothing_factor=label_smoothing_factor,
+        lr_scheduler_type=lr_scheduler_type
     )
     
     return {

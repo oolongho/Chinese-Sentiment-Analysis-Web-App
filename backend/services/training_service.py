@@ -106,6 +106,10 @@ def run_training(data_file: str, params: Dict):
             batch_size=params.get('batch_size', 16),
             learning_rate=params.get('learning_rate', 2e-5),
             max_length=params.get('max_length', 128),
+            warmup_ratio=params.get('warmup_ratio', 0.1),
+            weight_decay=params.get('weight_decay', 0.01),
+            label_smoothing_factor=params.get('label_smoothing_factor', 0.1),
+            lr_scheduler_type=params.get('lr_scheduler_type', 'cosine'),
             progress_callback=progress_cb
         )
         

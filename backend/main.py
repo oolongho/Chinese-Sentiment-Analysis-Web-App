@@ -21,7 +21,8 @@ from routers import (
     training_router,
     evaluation_router,
     quantization_router,
-    hybrid_experiment_router
+    hybrid_experiment_router,
+    dictionary_review_router
 )
 
 logger = setup_logger(
@@ -53,6 +54,7 @@ app.include_router(training_router)
 app.include_router(evaluation_router)
 app.include_router(quantization_router)
 app.include_router(hybrid_experiment_router)
+app.include_router(dictionary_review_router)
 
 
 @app.on_event("startup")

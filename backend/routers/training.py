@@ -5,13 +5,14 @@
 """
 
 import os
+import json
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Header, Form
 from pydantic import BaseModel
 
 from config import (
-    DATA_DIR, TRAINING_PARAMS, 
+    DATA_DIR, DICTIONARY_DIR, TRAINING_PARAMS, 
     ADMIN_PASSWORD_HASH, SECRET_KEY,
     load_external_api_config, save_external_api_config
 )
@@ -25,7 +26,6 @@ from services.training_service import (
 
 router = APIRouter(prefix='/api/training', tags=['管理平台'])
 
-DICTIONARY_DIR = DATA_DIR
 UPLOADED_DATA_FILE = None
 
 
@@ -38,6 +38,10 @@ class TrainingParams(BaseModel):
     batch_size: Optional[int] = None
     learning_rate: Optional[float] = None
     max_length: Optional[int] = None
+    warmup_ratio: Optional[float] = None
+    weight_decay: Optional[float] = None
+    label_smoothing_factor: Optional[float] = None
+    lr_scheduler_type: Optional[str] = None
 
 
 class DictionaryWord(BaseModel):
@@ -150,11 +154,23 @@ async def upload_training_data(
     
     UPLOADED_DATA_FILE = filepath
     
+    # 读取标签分布
+    import pandas as pd
+    df = pd.read_excel(filepath)
+    label_distribution = {}
+    if '标签' in df.columns:
+        label_distribution = df['标签'].value_counts().to_dict()
+        # 确保三个标签都存在
+        for label in ['正面', '负面', '中性']:
+            if label not in label_distribution:
+                label_distribution[label] = 0
+    
     return {
         'success': True,
         'filename': original_name,
         'count': count,
-        'filepath': filepath
+        'filepath': filepath,
+        'label_distribution': label_distribution
     }
 
 
@@ -163,6 +179,11 @@ async def get_uploaded_data(authorization: Optional[str] = Header(None)):
     """获取已上传的数据文件信息"""
     check_auth(authorization)
     
+    def get_label_dist(df):
+        if '标签' in df.columns:
+            return df['标签'].value_counts().to_dict()
+        return {}
+    
     if UPLOADED_DATA_FILE and os.path.exists(UPLOADED_DATA_FILE):
         import pandas as pd
         df = pd.read_excel(UPLOADED_DATA_FILE)
@@ -170,7 +191,8 @@ async def get_uploaded_data(authorization: Optional[str] = Header(None)):
             'uploaded': True,
             'filepath': UPLOADED_DATA_FILE,
             'count': len(df),
-            'columns': df.columns.tolist()
+            'columns': df.columns.tolist(),
+            'label_distribution': get_label_dist(df)
         }
     
     default_file = os.path.join(DATA_DIR, 'labeled_data.xlsx')
@@ -182,7 +204,8 @@ async def get_uploaded_data(authorization: Optional[str] = Header(None)):
             'filepath': default_file,
             'count': len(df),
             'columns': df.columns.tolist(),
-            'is_default': True
+            'is_default': True,
+            'label_distribution': get_label_dist(df)
         }
     
     return {'uploaded': False, 'count': 0}
@@ -213,6 +236,14 @@ async def update_training_params(
         TRAINING_PARAMS['learning_rate'] = params.learning_rate
     if params.max_length is not None:
         TRAINING_PARAMS['max_length'] = params.max_length
+    if params.warmup_ratio is not None:
+        TRAINING_PARAMS['warmup_ratio'] = params.warmup_ratio
+    if params.weight_decay is not None:
+        TRAINING_PARAMS['weight_decay'] = params.weight_decay
+    if params.label_smoothing_factor is not None:
+        TRAINING_PARAMS['label_smoothing_factor'] = params.label_smoothing_factor
+    if params.lr_scheduler_type is not None:
+        TRAINING_PARAMS['lr_scheduler_type'] = params.lr_scheduler_type
     
     return {'success': True, 'params': TRAINING_PARAMS}
 
@@ -374,7 +405,35 @@ async def get_dictionary_stats():
         filepath = get_dictionary_filepath(dict_type)
         words = read_dictionary(filepath, dict_type)
         stats[f'{dict_type}_count'] = len(words)
-    
+
+    # 新增：增强词典统计
+    enhanced_pos_file = os.path.join(DICTIONARY_DIR, 'enhanced_positive_words.txt')
+    enhanced_neg_file = os.path.join(DICTIONARY_DIR, 'enhanced_negative_words.txt')
+
+    enhanced_positive_count = 0
+    enhanced_negative_count = 0
+    if os.path.exists(enhanced_pos_file):
+        with open(enhanced_pos_file, 'r', encoding='utf-8') as f:
+            enhanced_positive_count = sum(1 for line in f if line.strip())
+    if os.path.exists(enhanced_neg_file):
+        with open(enhanced_neg_file, 'r', encoding='utf-8') as f:
+            enhanced_negative_count = sum(1 for line in f if line.strip())
+
+    # 读取增强开关状态
+    enhanced_enabled = False
+    _enhanced_status_file = os.path.join(DICTIONARY_DIR, 'enhanced_status.json')
+    if os.path.exists(_enhanced_status_file):
+        try:
+            with open(_enhanced_status_file, 'r', encoding='utf-8') as f:
+                status_data = json.load(f)
+                enhanced_enabled = status_data.get('enhanced_enabled', False)
+        except:
+            pass
+
+    stats['enhanced_positive_count'] = enhanced_positive_count
+    stats['enhanced_negative_count'] = enhanced_negative_count
+    stats['enhanced_enabled'] = enhanced_enabled
+
     return stats
 
 
@@ -475,6 +534,7 @@ async def ablation_test(
     enable_degree: bool = Form(True),
     enable_pattern: bool = Form(True),
     enable_dynamic_threshold: bool = Form(True),
+    enable_enhanced: bool = Form(False),
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -533,7 +593,8 @@ async def ablation_test(
             'enable_negation': enable_negation,
             'enable_degree': enable_degree,
             'enable_pattern': enable_pattern,
-            'enable_dynamic_threshold': enable_dynamic_threshold
+            'enable_dynamic_threshold': enable_dynamic_threshold,
+            'enable_enhanced': enable_enhanced
         }
         analyzer = LexiconAnalyzer(config=config_dict)
         

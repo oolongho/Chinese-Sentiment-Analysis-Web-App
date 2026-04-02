@@ -13,6 +13,7 @@ from pathlib import Path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, '..', 'data')
 MODEL_DIR = os.path.join(BASE_DIR, 'models')
+DICTIONARY_DIR = os.path.join(BASE_DIR, '..', 'data', 'lexicon')
 LOG_FILE = os.path.join(DATA_DIR, 'logs', 'app.log')
 
 _env_file = Path(BASE_DIR) / '.env'
@@ -86,6 +87,8 @@ TRAINING_PARAMS = {
     'max_length': 64,
     'warmup_ratio': 0.1,
     'weight_decay': 0.01,
+    'label_smoothing_factor': 0.1,
+    'lr_scheduler_type': 'cosine',
 }
 
 MODEL_NAME = 'hfl/chinese-roberta-wwm-ext'

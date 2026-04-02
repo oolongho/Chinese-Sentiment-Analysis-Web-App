@@ -19,7 +19,7 @@ from typing import Dict, Optional, Any
 from enum import Enum
 import time
 
-from sentiment.lexicon_analyzer import LexiconAnalyzer
+from sentiment import get_lexicon_analyzer
 from sentiment.model_analyzer import ModelAnalyzer
 
 
@@ -28,6 +28,8 @@ class HybridStrategy(Enum):
     CASCADE = "cascade"  # 级联加速
     WEIGHTED = "weighted"  # 置信度加权
     RULE_BASED = "rule_based"  # 规则修正
+    ENHANCED_CASCADE = "enhanced_cascade"  # 增强级联
+    ADAPTIVE = "adaptive"  # 自适应路由
 
 
 class HybridAnalyzer:
@@ -57,11 +59,18 @@ class HybridAnalyzer:
             'lexicon_score_threshold': 2.0,  # 词典得分阈值（降低以提高快速路径比例）
             'roberta_weight': 0.7,  # RoBERTa 权重
             'enable_speed_optimization': True,  # 启用速度优化
+            # 新增增强参数
+            'max_fast_path_length': 30,         # 快速路径最大文本长度
+            'min_sentiment_words': 1,           # 最少情感词数量
+            'dl_confidence_threshold': 0.85,   # DL 置信度阈值
+            'fusion_lexicon_weight': 0.40,     # 融合时词典权重
+            'fusion_dl_weight': 0.60,          # 融合时 DL 权重
+            'low_confidence_mark': True,       # 是否标记低置信度结果
         }
         self.config = {**self.default_config, **self.config}
         
-        # 初始化两个分析器
-        self.lexicon_analyzer = LexiconAnalyzer()
+        # 初始化两个分析器（使用单例，确保增强词典开关生效）
+        self.lexicon_analyzer = get_lexicon_analyzer()
         self.model_analyzer = ModelAnalyzer(precision="FP32")
         
         # 统计信息
@@ -89,6 +98,10 @@ class HybridAnalyzer:
             result = self._predict_weighted(text)
         elif self.strategy == HybridStrategy.RULE_BASED:
             result = self._predict_rule_based(text)
+        elif self.strategy == HybridStrategy.ENHANCED_CASCADE:
+            result = self._predict_enhanced_cascade(text)
+        elif self.strategy == HybridStrategy.ADAPTIVE:
+            result = self._predict_adaptive(text)
         else:
             raise ValueError(f"未知的混合策略：{self.strategy}")
         
@@ -268,6 +281,111 @@ class HybridAnalyzer:
             'roberta_result': roberta_result,
             'rules_applied': self._get_applied_rules(text, lexicon_result, roberta_result),
         }
+    
+    def _predict_enhanced_cascade(self, text: str) -> Dict[str, Any]:
+        """增强版级联策略"""
+        start_time = time.time()
+        
+        # Layer 1: 使用增强词典快速预检
+        lexicon_result = self.lexicon_analyzer.analyze(text)
+        lexicon_confidence = lexicon_result.get('confidence', 0)
+        lexicon_score = abs(lexicon_result.get('score', 0))
+        text_length = len(text)
+        sentiment_word_count = len(lexicon_result.get('sentiment_words', []))
+        
+        # 三条件 AND 判断快速路径
+        is_short_text = text_length <= self.config.get('max_fast_path_length', 30)
+        is_high_confidence = lexicon_confidence >= self.config['lexicon_threshold']
+        is_strong_sentiment = (
+            lexicon_score >= self.config['lexicon_score_threshold'] and 
+            sentiment_word_count >= self.config.get('min_sentiment_words', 1)
+        )
+        
+        if is_short_text and is_high_confidence and is_strong_sentiment:
+            self.stats['cascade_fast_path'] += 1
+            return {
+                'sentiment': lexicon_result['sentiment'],
+                'confidence': lexicon_confidence,
+                'scores': self._convert_lexicon_to_scores(lexicon_result),
+                'method': 'enhanced_lexicon_fast',
+                'layer': 1,
+                'inference_time_ms': (time.time() - start_time) * 1000,
+                'lexicon_result': lexicon_result,
+            }
+        
+        # Layer 2: 深度理解 (RoBERTa)
+        roberta_result = self.model_analyzer.predict(text)
+        roberta_confidence = roberta_result.get('confidence', 0)
+        
+        if roberta_confidence >= self.config.get('dl_confidence_threshold', 0.85):
+            self.stats['cascade_slow_path'] += 1
+            return {
+                'sentiment': roberta_result['sentiment'],
+                'confidence': roberta_confidence,
+                'scores': roberta_result.get('scores', {}),
+                'method': 'enhanced_roberta_direct',
+                'layer': 2,
+                'inference_time_ms': (time.time() - start_time) * 1000,
+                'roberta_result': roberta_result,
+            }
+        
+        # Layer 3: 低置信度融合
+        final_sentiment, final_confidence = self._fuse_low_confidence(
+            lexicon_result, roberta_result
+        )
+        
+        self.stats['cascade_slow_path'] += 1
+        return {
+            'sentiment': final_sentiment,
+            'confidence': final_confidence,
+            'scores': roberta_result.get('scores', {}),
+            'method': 'enhanced_fusion',
+            'layer': 3,
+            'inference_time_ms': (time.time() - start_time) * 1000,
+            'low_confidence_warning': self.config.get('low_confidence_mark', False),
+            'lexicon_result': lexicon_result,
+            'roberta_result': roberta_result,
+        }
+    
+    def _predict_adaptive(self, text: str) -> Dict[str, Any]:
+        """自适应路由：根据文本特征自动选择最优子策略"""
+        text_length = len(text)
+        
+        if text_length <= 15:
+            result = self._predict_cascade(text)
+            result['sub_strategy'] = 'cascade'
+        elif text_length <= 50:
+            result = self._predict_enhanced_cascade(text)
+            result['sub_strategy'] = 'enhanced_cascade'
+        else:
+            result = self._predict_weighted(text)
+            result['sub_strategy'] = 'weighted'
+        
+        return result
+    
+    def _fuse_low_confidence(self, lexicon_result, roberta_result):
+        """低置信度结果融合"""
+        w_lex = self.config.get('fusion_lexicon_weight', 0.40)
+        w_dl = self.config.get('fusion_dl_weight', 0.60)
+        
+        lex_conf = lexicon_result.get('confidence', 0.5)
+        dl_conf = roberta_result.get('confidence', 0.5)
+        
+        fused_confidence = round(w_lex * lex_conf + w_dl * dl_conf, 4)
+        
+        if dl_conf > lex_conf:
+            final_sentiment = roberta_result['sentiment']
+        elif lex_conf > dl_conf:
+            final_sentiment = lexicon_result['sentiment']
+        else:
+            if lexicon_result['sentiment'] == roberta_result['sentiment']:
+                final_sentiment = lexicon_result['sentiment']
+                fused_confidence = max(lex_conf, dl_conf)
+            else:
+                final_sentiment = roberta_result['sentiment']
+                fused_confidence = round(fused_confidence * 0.9, 4)
+        
+        return final_sentiment, fused_confidence
     
     def _detect_double_negation(self, text: str, lexicon_result: Dict) -> bool:
         """检测双重否定"""

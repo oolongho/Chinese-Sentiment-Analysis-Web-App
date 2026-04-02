@@ -20,7 +20,7 @@ from collections import Counter
 from io import StringIO
 
 from config import DATA_DIR, MAX_EXCEL_FILE_SIZE
-from sentiment import LexiconAnalyzer, ModelAnalyzer
+from sentiment import get_lexicon_analyzer, ModelAnalyzer
 from sentiment.hybrid_analyzer import HybridAnalyzer, HybridStrategy
 from services import call_text_api
 from routers.performance import update_model_metrics
@@ -32,7 +32,7 @@ logger = get_logger('sentiment_analysis')
 
 router = APIRouter(prefix='/api/evaluation', tags=['模型评估'])
 
-lexicon_analyzer = LexiconAnalyzer()
+lexicon_analyzer = get_lexicon_analyzer()
 model_analyzer = ModelAnalyzer()
 hybrid_analyzer = HybridAnalyzer(strategy=HybridStrategy.CASCADE)
 
