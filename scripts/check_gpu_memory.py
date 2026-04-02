@@ -8,6 +8,7 @@ import sys
 import torch
 import gc
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
 def get_gpu_memory():
@@ -65,7 +66,7 @@ print("=" * 80)
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend', 'models', 'roberta_finetuned')
+MODEL_DIR = os.path.join(PROJECT_ROOT, 'backend', 'models', 'roberta_finetuned')
 
 if not os.path.exists(MODEL_DIR):
     print(f"\n❌ 模型路径不存在: {MODEL_DIR}")
