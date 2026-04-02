@@ -59,9 +59,9 @@ interface EnhancedStatus {
   total_count: number;
 }
 
+const PAGE_SIZE = 20;
+
 const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
-  const PAGE_SIZE = 20;
-  
   // 梯度提取状态
   const [extractionConfig, setExtractionConfig] = useState<ExtractionConfig>({
     model_type: 'FP32',
