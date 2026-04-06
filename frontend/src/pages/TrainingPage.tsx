@@ -699,6 +699,51 @@ const TrainingPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
+
+                    {cachedTrainingResult.history?.epochs?.length > 0 && (
+                      <div className="grid md:grid-cols-2 gap-4 mt-4">
+                        <div className="bg-white rounded-xl p-3">
+                          <h5 className="text-xs font-medium text-gray-600 mb-2">Loss 曲线</h5>
+                          <ResponsiveContainer width="100%" height={160}>
+                            <LineChart
+                              data={cachedTrainingResult.history.epochs.map((epoch, i) => ({
+                                epoch: `E${epoch}`,
+                                train_loss: cachedTrainingResult.history.train_loss[i],
+                                eval_loss: cachedTrainingResult.history.eval_loss[i]
+                              }))}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis dataKey="epoch" tick={{ fontSize: 9 }} interval={Math.floor(cachedTrainingResult.history.epochs.length / 6)} />
+                              <YAxis tick={{ fontSize: 9 }} />
+                              <Tooltip />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                              <Line type="monotone" dataKey="train_loss" stroke="#3b82f6" name="训练Loss" strokeWidth={1.5} dot={false} />
+                              <Line type="monotone" dataKey="eval_loss" stroke="#ef4444" name="验证Loss" strokeWidth={1.5} dot={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="bg-white rounded-xl p-3">
+                          <h5 className="text-xs font-medium text-gray-600 mb-2">准确率 & F1 曲线</h5>
+                          <ResponsiveContainer width="100%" height={160}>
+                            <LineChart
+                              data={cachedTrainingResult.history.epochs.map((epoch, i) => ({
+                                epoch: `E${epoch}`,
+                                accuracy: cachedTrainingResult.history.accuracy[i] != null ? cachedTrainingResult.history.accuracy[i] * 100 : null,
+                                f1: cachedTrainingResult.history.f1[i] != null ? cachedTrainingResult.history.f1[i] * 100 : null
+                              }))}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                              <XAxis dataKey="epoch" tick={{ fontSize: 9 }} interval={Math.floor(cachedTrainingResult.history.epochs.length / 6)} />
+                              <YAxis tick={{ fontSize: 9 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                              <Tooltip formatter={(value) => value != null ? [`${Number(value).toFixed(1)}%`, ''] : ['-']} />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                              <Line type="monotone" dataKey="accuracy" stroke="#22c55e" name="准确率" strokeWidth={1.5} dot={false} />
+                              <Line type="monotone" dataKey="f1" stroke="#a855f7" name="F1值" strokeWidth={1.5} dot={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
