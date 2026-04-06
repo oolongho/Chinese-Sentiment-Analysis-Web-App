@@ -30,6 +30,8 @@ interface EvaluationResults {
 
 interface HybridEvaluationResult extends EvaluationResult {
   fast_path_ratio: number;
+  layer2_ratio: number;
+  layer3_ratio: number;
   lexicon_threshold: number;
   lexicon_score_threshold: number;
 }
@@ -90,8 +92,18 @@ const EvaluationTab: React.FC = () => {
     lexicon_threshold: 0.75,
     lexicon_score_threshold: 3.0
   });
+
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(['model', 'lexicon', 'hybrid']);
   
   const evaluationPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const toggleChannel = (channel: string) => {
+    setSelectedChannels(prev =>
+      prev.includes(channel)
+        ? prev.filter(c => c !== channel)
+        : [...prev, channel]
+    );
+  };
 
   // 加载缓存的评估结果
   const loadCachedEvaluationResult = async () => {
@@ -195,9 +207,9 @@ const EvaluationTab: React.FC = () => {
   };
 
   // 开始评估
-  const startEvaluation = async (includeExternal: boolean = false) => {
+  const startEvaluation = async (channels: string[] = ['model', 'lexicon', 'hybrid']) => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.evaluation}/run?include_external=${includeExternal}`, {
+      const response = await fetch(`${API_ENDPOINTS.evaluation}/run?channels=${channels.join(',')}`, {
         method: 'POST',
         headers: getAuthHeaders()
       });
@@ -279,7 +291,7 @@ const EvaluationTab: React.FC = () => {
         throw new Error('配置混合分析器失败');
       }
       
-      // 然后启动评估（使用普通的 run 端点，会自动包含混合模型）
+      // 然后启动评估（使用普通的 run 端点，会自动包含融合引擎）
       const response = await fetch(`${API_ENDPOINTS.evaluation}/run`, {
         method: 'POST',
         headers: getAuthHeaders()
@@ -521,28 +533,58 @@ const EvaluationTab: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
-              <button
-                onClick={() => startEvaluation(false)}
-                disabled={!evaluationDataInfo}
-                className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-400 hover:from-purple-600 hover:to-pink-500 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                本地评估（本地模型 + 情感词典）
-              </button>
-              <button
-                onClick={() => startEvaluation(true)}
-                disabled={!evaluationDataInfo}
-                className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                全部评估（包含外部 API，会很久哦）
-              </button>
-              <button
-                onClick={() => setShowHybridModal(true)}
-                disabled={!evaluationDataInfo}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                混合评估（可调整阈值）
-              </button>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {[
+                  { key: 'model', label: '深度学习模型', desc: '基于 RoBERTa 的预训练模型', color: 'blue' },
+                  { key: 'lexicon', label: '情感词典', desc: '基于词典规则的分析方法', color: 'purple' },
+                  { key: 'hybrid', label: '融合引擎', desc: '词典+模型混合策略（可配置阈值）', color: 'indigo' },
+                  { key: 'external', label: '外部 API', desc: '调用外部大模型接口分析', color: 'green' },
+                ].map(({ key, label, desc, color }) => (
+                  <label
+                    key={key}
+                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
+                      selectedChannels.includes(key)
+                        ? `bg-${color}-50 border-${color}-300`
+                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedChannels.includes(key)}
+                      onChange={() => toggleChannel(key)}
+                      className="w-4 h-4 rounded accent-purple-600"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-900">{label}</span>
+                      <span className="text-xs text-gray-500 ml-2">{desc}</span>
+                    </div>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      selectedChannels.includes(key)
+                        ? `bg-${color}-100 text-${color}-700`
+                        : 'bg-gray-200 text-gray-400'
+                    }`}>
+                      {selectedChannels.includes(key) ? '已选择' : '未选'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => startEvaluation(selectedChannels)}
+                  disabled={!evaluationDataInfo || selectedChannels.length === 0}
+                  className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-pink-400 hover:from-purple-600 hover:to-pink-500 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  开始评估 ({selectedChannels.length} 个通道)
+                </button>
+                <button
+                  onClick={() => setShowHybridModal(true)}
+                  disabled={!evaluationDataInfo}
+                  className="px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  融合引擎设置
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -741,9 +783,11 @@ const EvaluationTab: React.FC = () => {
             <div className="mt-6 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-6 border-2 border-purple-300">
               <h5 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                 <span className="w-4 h-4 bg-purple-600 rounded-full"></span>
-                混合模型评估结果（词典 + 深度学习）
+                融合引擎评估结果（词典 + 深度学习）
               </h5>
-              <div className="grid md:grid-cols-4 gap-4">
+              
+              {/* 第一行：性能指标 */}
+              <div className="grid grid-cols-5 gap-4 mb-4">
                 <div className="bg-white rounded-lg p-4 border border-purple-200">
                   <div className="text-sm text-gray-600 mb-1">准确率</div>
                   <div className="text-2xl font-bold text-purple-600">{(evaluationResults.hybrid.accuracy * 100).toFixed(1)}%</div>
@@ -760,17 +804,28 @@ const EvaluationTab: React.FC = () => {
                   <div className="text-sm text-gray-600 mb-1">F1 分数</div>
                   <div className="text-2xl font-bold text-purple-600">{(evaluationResults.hybrid.f1_score * 100).toFixed(1)}%</div>
                 </div>
+                <div className="bg-white rounded-lg p-4 border border-purple-200">
+                  <div className="text-sm text-gray-600 mb-1">平均响应时间</div>
+                  <div className="text-2xl font-bold text-purple-600">{(evaluationResults.hybrid.avg_response_time || 0).toFixed(2)} ms</div>
+                </div>
               </div>
-              <div className="mt-4 grid md:grid-cols-4 gap-4">
+              
+              {/* 第二行：融合统计 */}
+              <div className="grid grid-cols-5 gap-4">
                 <div className="bg-purple-100 rounded-lg p-3 border border-purple-300">
-                  <div className="text-xs text-purple-700 mb-1">快速路径比例</div>
+                  <div className="text-xs text-purple-700 mb-1">情感词典比例</div>
                   <div className="text-lg font-bold text-purple-900">{(evaluationResults.hybrid.fast_path_ratio * 100).toFixed(1)}%</div>
-                  <div className="text-xs text-purple-600 mt-1">使用词典直接判断的样本比例</div>
+                  <div className="text-xs text-purple-600 mt-1">Layer 1 快速路径</div>
                 </div>
                 <div className="bg-purple-100 rounded-lg p-3 border border-purple-300">
-                  <div className="text-xs text-purple-700 mb-1">平均响应时间</div>
-                  <div className="text-lg font-bold text-purple-900">{evaluationResults.hybrid.avg_response_time?.toFixed(2) || '0.00'} ms</div>
-                  <div className="text-xs text-purple-600 mt-1">avg_response_time</div>
+                  <div className="text-xs text-purple-700 mb-1">深度学习比例</div>
+                  <div className="text-lg font-bold text-purple-900">{(evaluationResults.hybrid.layer2_ratio * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-purple-600 mt-1">Layer 2 直返</div>
+                </div>
+                <div className="bg-purple-100 rounded-lg p-3 border border-purple-300">
+                  <div className="text-xs text-purple-700 mb-1">加权投票比例</div>
+                  <div className="text-lg font-bold text-purple-900">{(evaluationResults.hybrid.layer3_ratio * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-purple-600 mt-1">Layer 3 融合</div>
                 </div>
                 <div className="bg-purple-100 rounded-lg p-3 border border-purple-300">
                   <div className="text-xs text-purple-700 mb-1">词典阈值</div>
@@ -783,6 +838,7 @@ const EvaluationTab: React.FC = () => {
                   <div className="text-xs text-purple-600 mt-1">lexicon_score_threshold</div>
                 </div>
               </div>
+              
               <div className="mt-4 pt-4 border-t border-purple-200">
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>样本总数：{evaluationResults.hybrid.total_samples}</span>
@@ -830,7 +886,7 @@ const EvaluationTab: React.FC = () => {
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    混合模型 ({errorSamples.hybrid.length})
+                    融合引擎 ({errorSamples.hybrid.length})
                   </button>
                 )}
               </div>
@@ -886,7 +942,7 @@ const EvaluationTab: React.FC = () => {
         </div>
       )}
       
-      {/* 混合评估配置面板 - 内嵌式 */}
+      {/* 融合引擎设置面板 */}
       {showHybridModal && (
         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-200 mb-6">
           <div className="flex items-center justify-between mb-6">
@@ -894,7 +950,7 @@ const EvaluationTab: React.FC = () => {
               <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
-              混合评估配置
+              融合引擎设置
             </h3>
             <button
               onClick={() => setShowHybridModal(false)}
@@ -913,10 +969,10 @@ const EvaluationTab: React.FC = () => {
                   <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  混合模型说明
+                  融合引擎说明
                 </h4>
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  混合模型结合了<strong className="text-purple-600">情感词典</strong>和<strong className="text-purple-600">深度学习模型</strong>的优势：
+                  融合引擎结合了<strong className="text-purple-600">情感词典</strong>和<strong className="text-purple-600">深度学习模型</strong>的优势：
                 </p>
                 <ul className="mt-2 space-y-1 text-sm text-gray-700">
                   <li className="flex items-start gap-2">
@@ -979,7 +1035,7 @@ const EvaluationTab: React.FC = () => {
                     <span>0.95 (严格)</span>
                   </div>
                   <p className="text-xs text-gray-600 mt-2 bg-purple-50 p-2 rounded">
-                    💡 提示：值越小，越多使用词典快速判断；值越大，越多使用深度学习模型
+                    值越小，越多使用词典快速判断；值越大，越多使用深度学习模型
                   </p>
                 </div>
                 
@@ -1009,32 +1065,8 @@ const EvaluationTab: React.FC = () => {
                     <span>5.0 (高敏感)</span>
                   </div>
                   <p className="text-xs text-gray-600 mt-2 bg-indigo-50 p-2 rounded">
-                    💡 提示：值越小，越容易触发情感判断；值越大，需要更强的情感信号
+                    值越小，越容易触发情感判断；值越大，需要更强的情感信号
                   </p>
-                </div>
-              </div>
-              
-              {/* 推荐配置 */}
-              <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                <h4 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                  推荐配置
-                </h4>
-                <div className="text-sm text-amber-800">
-                  <div className="flex justify-between items-center py-2 border-b border-amber-200">
-                    <span>默认推荐：</span>
-                    <span className="font-semibold">lexicon_threshold = 0.75, lexicon_score_threshold = 3.0</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-amber-200">
-                    <span>追求速度：</span>
-                    <span className="font-semibold">lexicon_threshold = 0.60, lexicon_score_threshold = 2.5</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span>追求准确率：</span>
-                    <span className="font-semibold">lexicon_threshold = 0.85, lexicon_score_threshold = 3.5</span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1054,10 +1086,15 @@ const EvaluationTab: React.FC = () => {
                 取消
               </button>
               <button
-                onClick={startHybridEvaluation}
+                onClick={() => {
+                  if (!selectedChannels.includes('hybrid')) {
+                    setSelectedChannels(prev => [...prev, 'hybrid']);
+                  }
+                  startHybridEvaluation();
+                }}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
               >
-                开始混合评估
+                保存并评估融合引擎
               </button>
             </div>
           </div>
