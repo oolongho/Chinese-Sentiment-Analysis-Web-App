@@ -713,7 +713,7 @@ const TrainingPage: React.FC = () => {
                               }))}
                             >
                               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                              <XAxis dataKey="epoch" tick={{ fontSize: 9 }} interval={Math.floor(cachedTrainingResult.history.epochs.length / 6)} />
+                              <XAxis dataKey="epoch" tick={{ fontSize: 9 }} interval={Math.max(1, Math.floor(cachedTrainingResult.history.epochs.length / 6))} />
                               <YAxis tick={{ fontSize: 9 }} />
                               <Tooltip />
                               <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -733,7 +733,7 @@ const TrainingPage: React.FC = () => {
                               }))}
                             >
                               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                              <XAxis dataKey="epoch" tick={{ fontSize: 9 }} interval={Math.floor(cachedTrainingResult.history.epochs.length / 6)} />
+                              <XAxis dataKey="epoch" tick={{ fontSize: 9 }} interval={Math.max(1, Math.floor(cachedTrainingResult.history.epochs.length / 6))} />
                               <YAxis tick={{ fontSize: 9 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                               <Tooltip formatter={(value) => value != null ? [`${Number(value).toFixed(1)}%`, ''] : ['-']} />
                               <Legend wrapperStyle={{ fontSize: 11 }} />
