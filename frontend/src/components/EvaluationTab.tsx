@@ -89,7 +89,7 @@ const EvaluationTab: React.FC = () => {
   // 混合评估相关状态
   const [showHybridModal, setShowHybridModal] = useState(false);
   const [hybridThresholds, setHybridThresholds] = useState({
-    lexicon_threshold: 0.75,
+    lexicon_threshold: 0.70,
     lexicon_score_threshold: 3.0
   });
 
@@ -1074,7 +1074,7 @@ const EvaluationTab: React.FC = () => {
             {/* 操作按钮 */}
             <div className="flex gap-3 mt-8 pt-6 border-t border-purple-200">
               <button
-                onClick={() => setHybridThresholds({ lexicon_threshold: 0.75, lexicon_score_threshold: 3.0 })}
+                onClick={() => setHybridThresholds({ lexicon_threshold: 0.70, lexicon_score_threshold: 3.0 })}
                 className="flex-1 px-6 py-3 bg-white hover:bg-purple-50 text-gray-700 font-semibold rounded-xl transition-all duration-300 border border-purple-200"
               >
                 重置为默认值
