@@ -829,9 +829,13 @@ const TrainingPage: React.FC = () => {
                       <div>
                         <label className="block text-gray-700 font-medium mb-1.5 text-sm">学习率</label>
                         <input
-                          type="text"
+                          type="number"
+                          step="0.000001"
                           value={params.learning_rate}
-                          onChange={(e) => setParams({ ...params, learning_rate: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setParams({ ...params, learning_rate: isNaN(val) ? 0 : val });
+                          }}
                           className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
                         />
                       </div>
@@ -847,27 +851,39 @@ const TrainingPage: React.FC = () => {
                       <div>
                         <label className="block text-gray-700 font-medium mb-1.5 text-sm">Warmup 比例</label>
                         <input
-                          type="text"
+                          type="number"
+                          step="0.01"
                           value={params.warmup_ratio}
-                          onChange={(e) => setParams({ ...params, warmup_ratio: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setParams({ ...params, warmup_ratio: isNaN(val) ? 0 : val });
+                          }}
                           className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
                         />
                       </div>
                       <div>
                         <label className="block text-gray-700 font-medium mb-1.5 text-sm">权重衰减</label>
                         <input
-                          type="text"
+                          type="number"
+                          step="0.001"
                           value={params.weight_decay}
-                          onChange={(e) => setParams({ ...params, weight_decay: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setParams({ ...params, weight_decay: isNaN(val) ? 0 : val });
+                          }}
                           className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
                         />
                       </div>
                       <div>
                         <label className="block text-gray-700 font-medium mb-1.5 text-sm">Label Smoothing</label>
                         <input
-                          type="text"
+                          type="number"
+                          step="0.01"
                           value={params.label_smoothing_factor}
-                          onChange={(e) => setParams({ ...params, label_smoothing_factor: Math.min(0.5, Math.max(0, parseFloat(e.target.value) || 0)) })}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setParams({ ...params, label_smoothing_factor: isNaN(val) ? 0 : val });
+                          }}
                           className="w-full border-2 border-gray-200 rounded-xl p-2.5 text-sm focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300"
                         />
                       </div>
