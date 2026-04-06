@@ -45,17 +45,22 @@ ID_TO_LABEL = {0: '负面', 1: '中性', 2: '正面'}
 
 
 class ProgressCallback:
-    """训练进度回调处理器"""
-    
     def __init__(self, callback: Callable = None, total_epochs: int = 3):
         self.callback = callback
         self.total_epochs = total_epochs
         self.current_epoch = 0
-    
+        self.last_train_loss = None
+
     def on_epoch_end(self, epoch: int, metrics: Dict = None):
         self.current_epoch = epoch
         if self.callback:
-            self.callback(epoch, self.total_epochs, metrics, f'完成第 {epoch}/{self.total_epochs} 轮训练')
+            merged_metrics = dict(metrics) if metrics else {}
+            if self.last_train_loss is not None:
+                merged_metrics['train_loss'] = self.last_train_loss
+            self.callback(epoch, self.total_epochs, merged_metrics, f'完成第 {epoch}/{self.total_epochs} 轮训练')
+
+    def on_train_loss(self, loss: float):
+        self.last_train_loss = loss
 
 
 class SentimentDataset(Dataset):
@@ -198,10 +203,10 @@ def _get_model_path(model_name: str = 'hfl/chinese-roberta-wwm-ext') -> str:
 def _train_model_core(
     model_name: str = 'hfl/chinese-roberta-wwm-ext',
     output_dir: str = None,
-    num_epochs: int = 3,
+    num_epochs: int = 5,
     batch_size: int = 16,
-    learning_rate: float = 2e-5,
-    max_length: int = 128,
+    learning_rate: float = 1e-5,
+    max_length: int = 64,
     data_file: str = None,
     progress_callback: Callable = None,
     warmup_ratio: float = 0.1,
@@ -272,10 +277,14 @@ def _train_model_core(
             def __init__(self, handler, total_epochs):
                 self.handler = handler
                 self.total_epochs = total_epochs
-            
+
             def on_evaluate(self, args, state, control, metrics, **kwargs):
                 epoch = int(state.epoch) if state.epoch else 0
                 self.handler.on_epoch_end(epoch, metrics)
+
+            def on_log(self, args, state, control, logs=None, **kwargs):
+                if logs and 'loss' in logs:
+                    self.handler.on_train_loss(logs['loss'])
         
         callbacks.append(EpochEndCallback(progress_handler, num_epochs))
         progress_callback(0, num_epochs, {}, '正在初始化训练...')
@@ -334,10 +343,10 @@ def _train_model_core(
 def train_model(
     model_name: str = 'hfl/chinese-roberta-wwm-ext',
     output_dir: str = None,
-    num_epochs: int = 3,
+    num_epochs: int = 5,
     batch_size: int = 16,
-    learning_rate: float = 2e-5,
-    max_length: int = 128
+    learning_rate: float = 1e-5,
+    max_length: int = 64
 ):
     """训练模型（简化接口）"""
     trainer, tokenizer, metrics = _train_model_core(
@@ -355,10 +364,10 @@ def train_model_with_callback(
     data_file: str = None,
     model_name: str = 'hfl/chinese-roberta-wwm-ext',
     output_dir: str = None,
-    num_epochs: int = 3,
+    num_epochs: int = 5,
     batch_size: int = 16,
-    learning_rate: float = 2e-5,
-    max_length: int = 128,
+    learning_rate: float = 1e-5,
+    max_length: int = 64,
     progress_callback: Callable = None,
     warmup_ratio: float = 0.1,
     weight_decay: float = 0.01,
@@ -421,10 +430,10 @@ def evaluate_model(trainer, test_df: pd.DataFrame, tokenizer):
 def main():
     trainer, tokenizer = train_model(
         model_name='hfl/chinese-roberta-wwm-ext',
-        num_epochs=3,
+        num_epochs=5,
         batch_size=16,
-        learning_rate=2e-5,
-        max_length=128
+        learning_rate=1e-5,
+        max_length=64
     )
     
     test_df, _ = load_data()
