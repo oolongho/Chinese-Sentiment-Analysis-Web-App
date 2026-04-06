@@ -81,9 +81,9 @@ SECRET_KEY = _get_required_env('SECRET_KEY')
 DATABASE_URL = _get_optional_env('DATABASE_URL', 'sqlite:///' + os.path.join(DATA_DIR, 'app.db'))
 
 TRAINING_PARAMS = {
-    'epochs': 3,
-    'batch_size': 32,
-    'learning_rate': 2e-5,
+    'epochs': 5,
+    'batch_size': 16,
+    'learning_rate': 1e-5,
     'max_length': 64,
     'warmup_ratio': 0.1,
     'weight_decay': 0.01,
