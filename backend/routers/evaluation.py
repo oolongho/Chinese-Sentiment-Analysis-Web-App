@@ -2,10 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 模型评估路由
-功能：
-1. 上传测试数据集进行评估
-2. 计算准确率、精确率、召回率、F1分数
-3. 将评估结果存储到性能统计系统
 """
 
 import os
@@ -34,7 +30,8 @@ router = APIRouter(prefix='/api/evaluation', tags=['模型评估'])
 
 lexicon_analyzer = get_lexicon_analyzer()
 model_analyzer = ModelAnalyzer()
-hybrid_analyzer = HybridAnalyzer(strategy=HybridStrategy.CASCADE)
+# 这里设置混合分析器策略
+hybrid_analyzer = HybridAnalyzer(strategy=HybridStrategy.ENHANCED_CASCADE)
 
 evaluation_status = {
     'running': False,
@@ -142,11 +139,11 @@ def calculate_metrics(y_true: List[str], y_pred: List[str]) -> Dict:
     }
 
 
-def run_evaluation_with_error_handling(test_data: List[Dict], include_external: bool = False):
+def run_evaluation_with_error_handling(test_data: List[Dict], channels: List[str] = None):
     """包装函数，用于捕获线程中的异常"""
-    logger.info(f"评估线程开始执行，数据量：{len(test_data)}")
+    logger.info(f"评估线程开始执行，数据量：{len(test_data)}，通道：{channels}")
     try:
-        run_evaluation_sync(test_data, include_external)
+        run_evaluation_sync(test_data, channels)
         logger.info("评估线程执行完成")
     except Exception as e:
         logger.error(f"评估线程执行失败：{str(e)}", exc_info=True)
@@ -154,26 +151,35 @@ def run_evaluation_with_error_handling(test_data: List[Dict], include_external: 
         evaluation_status['error'] = f'评估执行失败：{str(e)}'
 
 
-def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
+def run_evaluation_sync(test_data: List[Dict], channels: List[str] = None):
     global evaluation_status
-    
+
+    if channels is None:
+        channels = ['model', 'lexicon', 'hybrid']
+
+    valid_channels = {'model', 'lexicon', 'hybrid', 'external'}
+    channels = [c for c in channels if c in valid_channels]
+
+    if not channels:
+        raise ValueError('至少需要选择一个评估通道')
+
     gpu_memory_peak = 0.0
-    
+
     try:
-        logger.info(f"开始执行评估，共 {len(test_data)} 条数据")
+        logger.info(f"开始执行评估，共 {len(test_data)} 条数据，通道: {channels}")
         from sentiment import get_model_analyzer
         current_analyzer = get_model_analyzer()
         precision_mode = current_analyzer.get_precision()
-        
+
         lexicon_analyzer.reload()
-        
+
         from services.system_monitor import system_monitor
         from services.cache_service import save_evaluation_cache
-        
+
         texts = [item['文本'] for item in test_data]
         labels = [item['标签'] for item in test_data]
         total = len(texts)
-        
+
         evaluation_status['total'] = total
         evaluation_status['running'] = True
         evaluation_status['error'] = None
@@ -181,120 +187,119 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
         evaluation_status['gpu_memory'] = {'current_mb': 0, 'peak_mb': 0}
         evaluation_status['response_times'] = {'model': [], 'lexicon': [], 'external': [], 'hybrid': []}
         evaluation_status['all_predictions'] = []
-        evaluation_status['precision_mode'] = precision_mode  # 记录当前精度模式
-        evaluation_status['hybrid_stats'] = None  # 重置 hybrid 统计信息
-        evaluation_status['hybrid_config'] = None  # 重置 hybrid 配置信息
-        
+        evaluation_status['precision_mode'] = precision_mode
+        evaluation_status['hybrid_stats'] = None
+        evaluation_status['hybrid_config'] = None
+
         results = {}
-        all_predictions = []
-        
-        evaluation_status['current_analyzer'] = 'model'
-        evaluation_status['progress'] = 0
-        model_predictions = []
-        model_times = []
-        for i, text in enumerate(texts):
-            start_time = time.time()
-            result = model_analyzer.predict(text)
-            elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
-            model_times.append(elapsed_time)
-            
-            model_predictions.append(result['sentiment'])
-            all_predictions.append({
-                'text': text,
-                'true_label': labels[i],
-                'model_pred': result['sentiment'],
-                'model_time': elapsed_time
-            })
-            if labels[i] != result['sentiment']:
-                evaluation_status['error_samples']['model'].append({
-                    'text': text,
-                    'true_label': labels[i],
-                    'pred_label': result['sentiment'],
-                    'confidence': result.get('confidence', 0)
-                })
-            evaluation_status['progress'] = i + 1
-            
-            gpu_info = system_monitor.get_gpu_memory_info()
-            current_mb = gpu_info.allocated_mb
-            if current_mb > gpu_memory_peak:
-                gpu_memory_peak = current_mb
-            evaluation_status['gpu_memory'] = {'current_mb': current_mb, 'peak_mb': gpu_memory_peak}
-            
-        results['model'] = calculate_metrics(labels, model_predictions)
-        results['model']['avg_response_time'] = sum(model_times) / len(model_times) if model_times else 0
-        evaluation_status['response_times']['model'] = model_times
-        
-        evaluation_status['current_analyzer'] = 'lexicon'
-        evaluation_status['progress'] = 0
-        lexicon_predictions = []
-        lexicon_times = []
-        for i, text in enumerate(texts):
-            start_time = time.time()
-            result = lexicon_analyzer.analyze(text)
-            elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
-            lexicon_times.append(elapsed_time)
-            
-            lexicon_predictions.append(result['sentiment'])
-            all_predictions[i]['lexicon_pred'] = result['sentiment']
-            all_predictions[i]['lexicon_time'] = elapsed_time
-            if labels[i] != result['sentiment']:
-                evaluation_status['error_samples']['lexicon'].append({
-                    'text': text,
-                    'true_label': labels[i],
-                    'pred_label': result['sentiment'],
-                    'score': result.get('score', 0)
-                })
-            evaluation_status['progress'] = i + 1
-        results['lexicon'] = calculate_metrics(labels, lexicon_predictions)
-        results['lexicon']['avg_response_time'] = sum(lexicon_times) / len(lexicon_times) if lexicon_times else 0
-        evaluation_status['response_times']['lexicon'] = lexicon_times
-        
-        # Hybrid 模型评估
-        evaluation_status['current_analyzer'] = 'hybrid'
-        evaluation_status['progress'] = 0
-        hybrid_predictions = []
-        hybrid_times = []
-        hybrid_analyzer.reset_stats()  # 重置统计信息
-        
-        for i, text in enumerate(texts):
-            start_time = time.time()
-            result = hybrid_analyzer.predict(text)
-            elapsed_time = (time.time() - start_time) * 1000  # 转换为毫秒
-            hybrid_times.append(elapsed_time)
-            
-            hybrid_predictions.append(result['sentiment'])
-            all_predictions[i]['hybrid_pred'] = result['sentiment']
-            all_predictions[i]['hybrid_time'] = elapsed_time
-            all_predictions[i]['hybrid_method'] = result.get('method', '')
-            
-            if labels[i] != result['sentiment']:
-                evaluation_status['error_samples']['hybrid'].append({
-                    'text': text,
-                    'true_label': labels[i],
-                    'pred_label': result['sentiment'],
-                    'confidence': result.get('confidence', 0),
-                    'method': result.get('method', '')
-                })
-            evaluation_status['progress'] = i + 1
-        
-        results['hybrid'] = calculate_metrics(labels, hybrid_predictions)
-        results['hybrid']['avg_response_time'] = sum(hybrid_times) / len(hybrid_times) if hybrid_times else 0
-        
-        # 添加 hybrid 模型特有指标
-        hybrid_stats = hybrid_analyzer.get_stats()
-        results['hybrid']['fast_path_ratio'] = hybrid_stats['fast_path_ratio']
-        results['hybrid']['lexicon_threshold'] = hybrid_analyzer.config.get('lexicon_threshold', 0.75)
-        results['hybrid']['lexicon_score_threshold'] = hybrid_analyzer.config.get('lexicon_score_threshold', 2.0)
-        
-        evaluation_status['response_times']['hybrid'] = hybrid_times
-        evaluation_status['hybrid_stats'] = hybrid_stats
-        evaluation_status['hybrid_config'] = {
-            'strategy': 'cascade',
-            'lexicon_threshold': hybrid_analyzer.config.get('lexicon_threshold', 0.75),
-            'lexicon_score_threshold': hybrid_analyzer.config.get('lexicon_score_threshold', 2.0)
-        }
-        
-        if include_external:
+        all_predictions = [{'text': t, 'true_label': l} for t, l in zip(texts, labels)]
+
+        if 'model' in channels:
+            evaluation_status['current_analyzer'] = 'model'
+            evaluation_status['progress'] = 0
+            model_predictions = []
+            model_times = []
+            for i, text in enumerate(texts):
+                start_time = time.time()
+                result = model_analyzer.predict(text)
+                elapsed_time = (time.time() - start_time) * 1000
+                model_times.append(elapsed_time)
+
+                model_predictions.append(result['sentiment'])
+                all_predictions[i]['model_pred'] = result['sentiment']
+                all_predictions[i]['model_time'] = elapsed_time
+                if labels[i] != result['sentiment']:
+                    evaluation_status['error_samples']['model'].append({
+                        'text': text,
+                        'true_label': labels[i],
+                        'pred_label': result['sentiment'],
+                        'confidence': result.get('confidence', 0)
+                    })
+                evaluation_status['progress'] = i + 1
+
+                gpu_info = system_monitor.get_gpu_memory_info()
+                current_mb = gpu_info.allocated_mb
+                if current_mb > gpu_memory_peak:
+                    gpu_memory_peak = current_mb
+                evaluation_status['gpu_memory'] = {'current_mb': current_mb, 'peak_mb': gpu_memory_peak}
+
+            results['model'] = calculate_metrics(labels, model_predictions)
+            results['model']['avg_response_time'] = sum(model_times) / len(model_times) if model_times else 0
+            evaluation_status['response_times']['model'] = model_times
+
+        if 'lexicon' in channels:
+            evaluation_status['current_analyzer'] = 'lexicon'
+            evaluation_status['progress'] = 0
+            lexicon_predictions = []
+            lexicon_times = []
+            for i, text in enumerate(texts):
+                start_time = time.time()
+                result = lexicon_analyzer.analyze(text)
+                elapsed_time = (time.time() - start_time) * 1000
+                lexicon_times.append(elapsed_time)
+
+                lexicon_predictions.append(result['sentiment'])
+                all_predictions[i]['lexicon_pred'] = result['sentiment']
+                all_predictions[i]['lexicon_time'] = elapsed_time
+                if labels[i] != result['sentiment']:
+                    evaluation_status['error_samples']['lexicon'].append({
+                        'text': text,
+                        'true_label': labels[i],
+                        'pred_label': result['sentiment'],
+                        'score': result.get('score', 0)
+                    })
+                evaluation_status['progress'] = i + 1
+            results['lexicon'] = calculate_metrics(labels, lexicon_predictions)
+            results['lexicon']['avg_response_time'] = sum(lexicon_times) / len(lexicon_times) if lexicon_times else 0
+            evaluation_status['response_times']['lexicon'] = lexicon_times
+
+        if 'hybrid' in channels:
+            evaluation_status['current_analyzer'] = 'hybrid'
+            evaluation_status['progress'] = 0
+            hybrid_predictions = []
+            hybrid_times = []
+            hybrid_analyzer.reset_stats()
+
+            for i, text in enumerate(texts):
+                start_time = time.time()
+                result = hybrid_analyzer.predict(text)
+                elapsed_time = (time.time() - start_time) * 1000
+                hybrid_times.append(elapsed_time)
+
+                hybrid_predictions.append(result['sentiment'])
+                all_predictions[i]['hybrid_pred'] = result['sentiment']
+                all_predictions[i]['hybrid_time'] = elapsed_time
+                all_predictions[i]['hybrid_method'] = result.get('method', '')
+
+                if labels[i] != result['sentiment']:
+                    evaluation_status['error_samples']['hybrid'].append({
+                        'text': text,
+                        'true_label': labels[i],
+                        'pred_label': result['sentiment'],
+                        'confidence': result.get('confidence', 0),
+                        'method': result.get('method', '')
+                    })
+                evaluation_status['progress'] = i + 1
+
+            results['hybrid'] = calculate_metrics(labels, hybrid_predictions)
+            results['hybrid']['avg_response_time'] = sum(hybrid_times) / len(hybrid_times) if hybrid_times else 0
+
+            hybrid_stats = hybrid_analyzer.get_stats()
+            results['hybrid']['fast_path_ratio'] = hybrid_stats['fast_path_ratio']
+            results['hybrid']['layer2_ratio'] = hybrid_stats['layer2_ratio']  # 新增 Layer 2 统计
+            results['hybrid']['layer3_ratio'] = hybrid_stats['layer3_ratio']  # 新增 Layer 3 统计
+            results['hybrid']['lexicon_threshold'] = hybrid_analyzer.config.get('lexicon_threshold', 0.70)
+            results['hybrid']['lexicon_score_threshold'] = hybrid_analyzer.config.get('lexicon_score_threshold', 3.0)
+
+            evaluation_status['response_times']['hybrid'] = hybrid_times
+            evaluation_status['hybrid_stats'] = hybrid_stats
+            evaluation_status['hybrid_config'] = {
+                'strategy': 'cascade',
+                'lexicon_threshold': hybrid_analyzer.config.get('lexicon_threshold', 0.70),
+                'lexicon_score_threshold': hybrid_analyzer.config.get('lexicon_score_threshold', 3.0)
+            }
+
+        if 'external' in channels:
             evaluation_status['current_analyzer'] = 'external'
             evaluation_status['progress'] = 0
             external_predictions = []
@@ -332,7 +337,7 @@ def run_evaluation_sync(test_data: List[Dict], include_external: bool = False):
             results['external']['avg_response_time'] = sum(external_times) / len(external_times) if external_times else 0
             evaluation_status['response_times']['external'] = external_times
         
-        for analyzer_type in ['model', 'lexicon']:
+        for analyzer_type in channels:
             if analyzer_type in results:
                 update_model_metrics(analyzer_type, {
                     'accuracy': results[analyzer_type]['accuracy'],
@@ -410,39 +415,41 @@ async def upload_test_data(
 
 @router.post('/run')
 async def run_evaluation(
-    include_external: bool = False,
+    channels: str = 'model,lexicon,hybrid',
     _: bool = Depends(get_current_user)
 ):
     global evaluation_status
-    
+
     if evaluation_status['running']:
         return {'success': False, 'message': '评估正在进行中，请稍候'}
-    
+
     test_file = os.path.join(DATA_DIR, 'evaluation_data.xlsx')
     if not os.path.exists(test_file):
         return {'success': False, 'message': '请先上传测试数据'}
-    
+
     try:
+        channel_list = [c.strip() for c in channels.split(',') if c.strip()]
+
         df = pd.read_excel(test_file)
         test_data = df[['文本', '标签']].to_dict('records')
-        
+
         if len(test_data) == 0:
             return {'success': False, 'message': '测试数据为空'}
-        
+
         thread = threading.Thread(
             target=run_evaluation_with_error_handling,
-            args=(test_data, include_external),
+            args=(test_data, channel_list),
             daemon=True
         )
         thread.start()
-        logger.info(f"评估线程已启动，线程 ID: {thread.ident}")
-        
+        logger.info(f"评估线程已启动，线程 ID: {thread.ident}，通道: {channel_list}")
+
         return {
             'success': True,
-            'message': f'开始评估 {len(test_data)} 条数据',
+            'message': f'开始评估 {len(test_data)} 条数据，通道: {channel_list}',
             'total': len(test_data)
         }
-        
+
     except Exception as e:
         return {'success': False, 'message': f'启动评估失败: {str(e)}'}
 
@@ -503,8 +510,8 @@ async def get_evaluation_results():
             'avg_response_time': results['hybrid'].get('avg_response_time', 0),
             'confusion_matrix': results['hybrid'].get('confusion_matrix', [[0,0,0],[0,0,0],[0,0,0]]),
             'fast_path_ratio': results['hybrid'].get('fast_path_ratio', 0),
-            'lexicon_threshold': results['hybrid'].get('lexicon_threshold', 0.75),
-            'lexicon_score_threshold': results['hybrid'].get('lexicon_score_threshold', 2.0)
+            'lexicon_threshold': results['hybrid'].get('lexicon_threshold', 0.70),
+            'lexicon_score_threshold': results['hybrid'].get('lexicon_score_threshold', 3.0)
         } if 'hybrid' in results else None,
         'external': {
             'accuracy': results['external']['accuracy'],
@@ -605,7 +612,7 @@ async def export_evaluation_results(format: str = 'csv', _: bool = Depends(get_c
         analyzer_names = {
             'model': '深度学习模型',
             'lexicon': '情感词典',
-            'hybrid': '混合模型',
+            'hybrid': '融合引擎',
             'external': '外部 API'
         }
         
@@ -634,9 +641,9 @@ async def export_evaluation_results(format: str = 'csv', _: bool = Depends(get_c
                     '深度学习模型响应时间 (ms)': f"{pred.get('model_time', 0):.2f}",
                     '情感词典预测': pred.get('lexicon_pred', ''),
                     '情感词典响应时间 (ms)': f"{pred.get('lexicon_time', 0):.2f}",
-                    '混合模型预测': pred.get('hybrid_pred', ''),
-                    '混合模型响应时间 (ms)': f"{pred.get('hybrid_time', 0):.2f}",
-                    '混合模型方法': pred.get('hybrid_method', '')
+                    '融合引擎预测': pred.get('hybrid_pred', ''),
+                    '融合引擎响应时间 (ms)': f"{pred.get('hybrid_time', 0):.2f}",
+                    '融合引擎方法': pred.get('hybrid_method', '')
                 }
                 if 'external_pred' in pred:
                     row['外部 API 预测'] = pred['external_pred']
@@ -702,7 +709,7 @@ async def generate_evaluation_charts():
         analyzer_names = {
             'model': '深度学习模型',
             'lexicon': '情感词典',
-            'hybrid': '混合模型',
+            'hybrid': '融合引擎',
             'external': '外部 API'
         }
         
@@ -814,8 +821,8 @@ async def configure_hybrid_analyzer(config: dict, _: bool = Depends(get_current_
     配置混合分析器参数
     """
     try:
-        lexicon_threshold = config.get('lexicon_threshold', 0.75)
-        lexicon_score_threshold = config.get('lexicon_score_threshold', 2.0)
+        lexicon_threshold = config.get('lexicon_threshold', 0.70)
+        lexicon_score_threshold = config.get('lexicon_score_threshold', 3.0)
         
         # 更新 hybrid_analyzer 的配置
         hybrid_analyzer.config['lexicon_threshold'] = lexicon_threshold
@@ -839,8 +846,8 @@ async def get_hybrid_config():
     return {
         'success': True,
         'config': {
-            'lexicon_threshold': hybrid_analyzer.config.get('lexicon_threshold', 0.75),
-            'lexicon_score_threshold': hybrid_analyzer.config.get('lexicon_score_threshold', 2.0)
+            'lexicon_threshold': hybrid_analyzer.config.get('lexicon_threshold', 0.70),
+            'lexicon_score_threshold': hybrid_analyzer.config.get('lexicon_score_threshold', 3.0)
         }
     }
 
