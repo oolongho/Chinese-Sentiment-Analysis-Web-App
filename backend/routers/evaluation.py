@@ -296,110 +296,26 @@ def run_evaluation_sync(test_data: List[Dict], channels: List[str] = None):
             
             return predictions, times, local_gpu_peak
 
-        if 'model' in channels:
-            evaluation_status['current_analyzer'] = 'model'
-            evaluation_status['progress'] = 0
-            model_predictions = []
-            model_times = []
-            for i, text in enumerate(texts):
-                start_time = time.time()
-                result = model_analyzer.predict(text)
-                elapsed_time = (time.time() - start_time) * 1000
-                model_times.append(elapsed_time)
-
-                model_predictions.append(result['sentiment'])
-                all_predictions[i]['model_pred'] = result['sentiment']
-                all_predictions[i]['model_time'] = elapsed_time
-                if labels[i] != result['sentiment']:
-                    evaluation_status['error_samples']['model'].append({
-                        'text': text,
-                        'true_label': labels[i],
-                        'pred_label': result['sentiment'],
-                        'confidence': result.get('confidence', 0)
-                    })
-                evaluation_status['progress'] = i + 1
-
-                gpu_info = system_monitor.get_gpu_memory_info()
-                current_mb = gpu_info.allocated_mb
-                if current_mb > gpu_memory_peak:
-                    gpu_memory_peak = current_mb
-                evaluation_status['gpu_memory'] = {'current_mb': current_mb, 'peak_mb': gpu_memory_peak}
-
-            results['model'] = calculate_metrics(labels, model_predictions)
-            results['model']['avg_response_time'] = sum(model_times) / len(model_times) if model_times else 0
-            evaluation_status['response_times']['model'] = model_times
-
-        if 'lexicon' in channels:
-            evaluation_status['current_analyzer'] = 'lexicon'
-            evaluation_status['progress'] = 0
-            lexicon_predictions = []
-            lexicon_times = []
-            for i, text in enumerate(texts):
-                start_time = time.time()
-                result = lexicon_analyzer.analyze(text)
-                elapsed_time = (time.time() - start_time) * 1000
-                lexicon_times.append(elapsed_time)
-
-                lexicon_predictions.append(result['sentiment'])
-                all_predictions[i]['lexicon_pred'] = result['sentiment']
-                all_predictions[i]['lexicon_time'] = elapsed_time
-                if labels[i] != result['sentiment']:
-                    evaluation_status['error_samples']['lexicon'].append({
-                        'text': text,
-                        'true_label': labels[i],
-                        'pred_label': result['sentiment'],
-                        'score': result.get('score', 0)
-                    })
-                evaluation_status['progress'] = i + 1
-            results['lexicon'] = calculate_metrics(labels, lexicon_predictions)
-            results['lexicon']['avg_response_time'] = sum(lexicon_times) / len(lexicon_times) if lexicon_times else 0
-            evaluation_status['response_times']['lexicon'] = lexicon_times
-
-        if 'hybrid' in channels:
-            evaluation_status['current_analyzer'] = 'hybrid'
-            evaluation_status['progress'] = 0
-            hybrid_predictions = []
-            hybrid_times = []
-            hybrid_analyzer.reset_stats()
-
-            for i, text in enumerate(texts):
-                start_time = time.time()
-                result = hybrid_analyzer.predict(text)
-                elapsed_time = (time.time() - start_time) * 1000
-                hybrid_times.append(elapsed_time)
-
-                hybrid_predictions.append(result['sentiment'])
-                all_predictions[i]['hybrid_pred'] = result['sentiment']
-                all_predictions[i]['hybrid_time'] = elapsed_time
-                all_predictions[i]['hybrid_method'] = result.get('method', '')
-
-                if labels[i] != result['sentiment']:
-                    evaluation_status['error_samples']['hybrid'].append({
-                        'text': text,
-                        'true_label': labels[i],
-                        'pred_label': result['sentiment'],
-                        'confidence': result.get('confidence', 0),
-                        'method': result.get('method', '')
-                    })
-                evaluation_status['progress'] = i + 1
-
-            results['hybrid'] = calculate_metrics(labels, hybrid_predictions)
-            results['hybrid']['avg_response_time'] = sum(hybrid_times) / len(hybrid_times) if hybrid_times else 0
-
-            hybrid_stats = hybrid_analyzer.get_stats()
-            results['hybrid']['fast_path_ratio'] = hybrid_stats['fast_path_ratio']
-            results['hybrid']['layer2_ratio'] = hybrid_stats['layer2_ratio']  # 新增 Layer 2 统计
-            results['hybrid']['layer3_ratio'] = hybrid_stats['layer3_ratio']  # 新增 Layer 3 统计
-            results['hybrid']['lexicon_threshold'] = hybrid_analyzer.config.get('lexicon_threshold', 0.70)
-            results['hybrid']['lexicon_score_threshold'] = hybrid_analyzer.config.get('lexicon_score_threshold', 3.0)
-
-            evaluation_status['response_times']['hybrid'] = hybrid_times
-            evaluation_status['hybrid_stats'] = hybrid_stats
-            evaluation_status['hybrid_config'] = {
-                'strategy': 'cascade',
-                'lexicon_threshold': hybrid_analyzer.config.get('lexicon_threshold', 0.70),
-                'lexicon_score_threshold': hybrid_analyzer.config.get('lexicon_score_threshold', 3.0)
-            }
+        for channel_name in channels:
+            if channel_name not in EVALUATION_CHANNELS:
+                continue
+            
+            channel_config = EVALUATION_CHANNELS[channel_name]
+            
+            predictions, times, gpu_memory_peak = _run_channel_evaluation(
+                channel_name=channel_name,
+                analyzer=channel_config['analyzer'],
+                predict_method=channel_config['predict_method'],
+                error_fields=channel_config['error_fields'],
+                extra_fields=channel_config['extra_fields'],
+                gpu_memory_peak=gpu_memory_peak,
+                setup_func=channel_config['setup'],
+                post_process_func=channel_config['post_process']
+            )
+            
+            results[channel_name] = calculate_metrics(labels, predictions)
+            results[channel_name]['avg_response_time'] = sum(times) / len(times) if times else 0
+            evaluation_status['response_times'][channel_name] = times
 
         if 'external' in channels:
             evaluation_status['current_analyzer'] = 'external'
