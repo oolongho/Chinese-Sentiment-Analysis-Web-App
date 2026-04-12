@@ -22,7 +22,7 @@ const TrainingPage: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'training' | 'dictionary' | 'external' | 'evaluation' | 'ablation' | 'quantization' | 'fusion-training'>('external');
+  const [activeTab, setActiveTab] = useState<'training' | 'dictionary' | 'external' | 'evaluation' | 'ablation' | 'quantization' | 'hybrid-inference'>('external');
   const [params, setParams] = useState<TrainingParams>({
     epochs: 3,
     batch_size: 16,
@@ -561,9 +561,9 @@ const TrainingPage: React.FC = () => {
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('fusion-training')}
+              onClick={() => setActiveTab('hybrid-inference')}
               className={`flex-1 py-4 px-6 font-semibold transition-all duration-300 ${
-                activeTab === 'fusion-training'
+                activeTab === 'hybrid-inference'
                   ? 'bg-gradient-to-r from-purple-500 to-pink-400 text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
@@ -572,7 +572,7 @@ const TrainingPage: React.FC = () => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                 </svg>
-                融合训练
+                领域词提取
               </div>
             </button>
           </div>
@@ -1038,7 +1038,7 @@ const TrainingPage: React.FC = () => {
 
             {activeTab === 'quantization' && <QuantizationContent />}
 
-            {activeTab === 'fusion-training' && <DictionaryReviewTab token={token} />}
+            {activeTab === 'hybrid-inference' && <DictionaryReviewTab token={token} />}
           </div>
         </div>
       </div>

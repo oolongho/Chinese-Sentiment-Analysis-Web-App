@@ -162,16 +162,20 @@ const TextAnalysisPage: React.FC = () => {
       let localData;
       
       if (useHybridMode) {
-        // 混合模式：逐条调用混合分析 API
-        const hybridResults = await Promise.all(
-          textLines.map(text => 
-            fetch(`${API_ENDPOINTS.text}/analyze/hybrid`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ text })
-            }).then(res => res.json())
-          )
-        );
+        // 混合模式：逐条调用混合分析 API（串行处理，避免并发 GPU 推理冲突）
+        const hybridResults: any[] = [];
+        for (const text of textLines) {
+          const response = await fetch(`${API_ENDPOINTS.text}/analyze/hybrid`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+          });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+            throw new Error(`混合分析请求失败 (${response.status}): ${errorData.detail || '未知错误'}`);
+          }
+          hybridResults.push(await response.json());
+        }
         
         localData = {
           results: hybridResults,
@@ -194,31 +198,38 @@ const TextAnalysisPage: React.FC = () => {
       const results: AnalysisResult[] = localData.results.map((item: any, index: number) => {
         if (useHybridMode) {
           // 混合模式结果映射
+          // 优先使用 roberta_result/lexicon_result，fallback 到顶层字段（处理快速路径场景）
+          const robertaSentiment = item.roberta_result?.sentiment || item.sentiment;
+          const robertaConfidence = item.roberta_result?.confidence ?? item.confidence;
+          const lexiconSentiment = item.lexicon_result?.sentiment || item.sentiment;
+          const lexiconConfidence = item.lexicon_result?.confidence ?? item.confidence;
+
+          const mapSentiment = (s: string) => 
+            s === '正面' ? 'positive' : s === '负面' ? 'negative' : 'neutral';
+
           return {
             text: textLines[index],
             modelType: 'hybrid',
             hybridStats: localData.hybrid_stats ? {
               fastPathRatio: localData.hybrid_stats.fast_path_ratio || 0,
-              totalSamples: localData.hybrid_stats.total_samples || 0,
-              fastPathSamples: localData.hybrid_stats.fast_path_samples || 0
+              totalSamples: localData.hybrid_stats.total_predictions || 0,
+              fastPathSamples: localData.hybrid_stats.cascade_fast_path || 0
             } : undefined,
             models: {
               deepLearning: {
-                sentiment: item.roberta_result?.sentiment === '正面' ? 'positive' : 
-                           item.roberta_result?.sentiment === '负面' ? 'negative' : 'neutral',
-                confidence: item.roberta_result?.confidence || 0,
-                analysisTime: item.roberta_result?.processing_time || 0,
-                scores: item.roberta_result?.scores || {},
+                sentiment: mapSentiment(robertaSentiment),
+                confidence: robertaConfidence,
+                analysisTime: (item.inference_time_ms || 0) / 1000,
+                scores: item.roberta_result?.scores || item.scores || {},
                 cpuPeak: 0,
                 cpuAvg: 0,
                 gpuPeak: 0,
                 gpuAvg: 0
               },
               lexicon: {
-                sentiment: item.lexicon_result?.sentiment === '正面' ? 'positive' : 
-                           item.lexicon_result?.sentiment === '负面' ? 'negative' : 'neutral',
-                confidence: item.lexicon_result?.confidence || 0,
-                analysisTime: item.lexicon_result?.processing_time || 0,
+                sentiment: mapSentiment(lexiconSentiment),
+                confidence: lexiconConfidence,
+                analysisTime: (item.inference_time_ms || 0) / 1000,
                 score: item.lexicon_result?.score || 0,
                 sentimentWords: item.lexicon_result?.sentiment_words || [],
                 cpuPeak: 0,
@@ -585,7 +596,7 @@ const TextAnalysisPage: React.FC = () => {
                   混合分析模式
                 </label>
                 <span className="text-xs text-gray-500">
-                  {useHybridMode ? '使用混合融合模型（更快）' : '使用词典快速模型'}
+                  {useHybridMode ? '使用混合推理模型（更快）' : '使用词典快速模型'}
                 </span>
               </div>
               <button
@@ -682,7 +693,7 @@ const TextAnalysisPage: React.FC = () => {
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
-                      混合融合
+                      混合推理
                     </span>
                   ) : (
                     <span className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-400 text-white text-sm font-semibold rounded-full flex items-center gap-1 shadow-md">

@@ -23,7 +23,7 @@ const HomePage: React.FC = () => {
           </h1>
           
           <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
-            融合情感词典与深度学习多通道分析技术，为您提供高精度的文本和音频情感分析服务，助力商业决策与舆情监控
+            混合情感词典与深度学习多通道分析技术，为您提供高精度的文本和音频情感分析服务，助力商业决策与舆情监控
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-4">
