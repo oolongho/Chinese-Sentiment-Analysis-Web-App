@@ -413,8 +413,8 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-xl font-bold text-gray-900 mb-2">融合训练</h3>
-      <p className="text-gray-500 text-sm mb-6">使用梯度×嵌入法自动提取情感候选词，并通过人工审核构建增强词典。</p>
+      <h3 className="text-xl font-bold text-gray-900 mb-2">混合推理</h3>
+      <p className="text-gray-500 text-sm mb-6">基于梯度显著性的领域词提取，并通过人工审核构建增强词典。</p>
 
       {/* 增强词典开关 */}
       <div className="bg-white rounded-2xl p-4 border border-gray-200 flex items-center justify-between">

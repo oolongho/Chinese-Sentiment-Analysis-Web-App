@@ -22,7 +22,7 @@ export const EVALUATION_ENDPOINTS = {
 /**
  * 混合分析策略类型
  * - cascade: 级联加速（简单案例用词典，复杂案例用深度学习）
- * - weighted: 置信度加权（根据两种方法的置信度动态融合结果）
+ * - weighted: 置信度加权（根据两种方法的置信度动态混合结果）
  * - rule_based: 规则修正（用词典规则修正深度学习的明显错误）
  */
 export type HybridStrategy = 'cascade' | 'weighted' | 'rule_based';

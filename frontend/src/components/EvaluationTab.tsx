@@ -291,7 +291,7 @@ const EvaluationTab: React.FC = () => {
         throw new Error('配置混合分析器失败');
       }
       
-      // 然后启动评估（使用普通的 run 端点，会自动包含融合引擎）
+      // 然后启动评估（使用普通的 run 端点，会自动包含混合推理）
       const response = await fetch(`${API_ENDPOINTS.evaluation}/run`, {
         method: 'POST',
         headers: getAuthHeaders()
@@ -538,7 +538,7 @@ const EvaluationTab: React.FC = () => {
                 {[
                   { key: 'model', label: '深度学习模型', desc: '基于 RoBERTa 的预训练模型', color: 'blue' },
                   { key: 'lexicon', label: '情感词典', desc: '基于词典规则的分析方法', color: 'purple' },
-                  { key: 'hybrid', label: '融合引擎', desc: '词典+模型混合策略（可配置阈值）', color: 'indigo' },
+                  { key: 'hybrid', label: '混合推理', desc: '词典+模型混合策略（可配置阈值）', color: 'indigo' },
                   { key: 'external', label: '外部 API', desc: '调用外部大模型接口分析', color: 'green' },
                 ].map(({ key, label, desc, color }) => (
                   <label
@@ -582,7 +582,7 @@ const EvaluationTab: React.FC = () => {
                   disabled={!evaluationDataInfo}
                   className="px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
-                  融合引擎设置
+                  混合推理设置
                 </button>
               </div>
             </div>
@@ -783,7 +783,7 @@ const EvaluationTab: React.FC = () => {
             <div className="mt-6 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-6 border-2 border-purple-300">
               <h5 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                 <span className="w-4 h-4 bg-purple-600 rounded-full"></span>
-                融合引擎评估结果（词典 + 深度学习）
+                混合推理评估结果（词典 + 深度学习）
               </h5>
               
               {/* 第一行：性能指标 */}
@@ -810,7 +810,7 @@ const EvaluationTab: React.FC = () => {
                 </div>
               </div>
               
-              {/* 第二行：融合统计 */}
+              {/* 第二行：混合统计 */}
               <div className="grid grid-cols-5 gap-4">
                 <div className="bg-purple-100 rounded-lg p-3 border border-purple-300">
                   <div className="text-xs text-purple-700 mb-1">情感词典比例</div>
@@ -825,7 +825,7 @@ const EvaluationTab: React.FC = () => {
                 <div className="bg-purple-100 rounded-lg p-3 border border-purple-300">
                   <div className="text-xs text-purple-700 mb-1">加权投票比例</div>
                   <div className="text-lg font-bold text-purple-900">{(evaluationResults.hybrid.layer3_ratio * 100).toFixed(1)}%</div>
-                  <div className="text-xs text-purple-600 mt-1">Layer 3 融合</div>
+                  <div className="text-xs text-purple-600 mt-1">Layer 3 混合</div>
                 </div>
                 <div className="bg-purple-100 rounded-lg p-3 border border-purple-300">
                   <div className="text-xs text-purple-700 mb-1">词典阈值</div>
@@ -886,7 +886,7 @@ const EvaluationTab: React.FC = () => {
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    融合引擎 ({errorSamples.hybrid.length})
+                    混合推理 ({errorSamples.hybrid.length})
                   </button>
                 )}
               </div>
@@ -942,7 +942,7 @@ const EvaluationTab: React.FC = () => {
         </div>
       )}
       
-      {/* 融合引擎设置面板 */}
+      {/* 混合推理设置面板 */}
       {showHybridModal && (
         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-200 mb-6">
           <div className="flex items-center justify-between mb-6">
@@ -950,7 +950,7 @@ const EvaluationTab: React.FC = () => {
               <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
-              融合引擎设置
+              混合推理设置
             </h3>
             <button
               onClick={() => setShowHybridModal(false)}
@@ -969,10 +969,10 @@ const EvaluationTab: React.FC = () => {
                   <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  融合引擎说明
+                  混合推理说明
                 </h4>
                 <p className="text-sm text-gray-700 leading-relaxed">
-                  融合引擎结合了<strong className="text-purple-600">情感词典</strong>和<strong className="text-purple-600">深度学习模型</strong>的优势：
+                  混合推理结合了<strong className="text-purple-600">情感词典</strong>和<strong className="text-purple-600">深度学习模型</strong>的优势：
                 </p>
                 <ul className="mt-2 space-y-1 text-sm text-gray-700">
                   <li className="flex items-start gap-2">
@@ -989,8 +989,6 @@ const EvaluationTab: React.FC = () => {
                   </li>
                 </ul>
               </div>
-              
-              {/* 当前配置 */}
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                 <h4 className="font-semibold text-gray-900 mb-3">当前阈值配置</h4>
                 <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -1094,7 +1092,7 @@ const EvaluationTab: React.FC = () => {
                 }}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
               >
-                保存并评估融合引擎
+                保存并评估混合推理
               </button>
             </div>
           </div>
