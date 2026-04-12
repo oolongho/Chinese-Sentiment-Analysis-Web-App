@@ -193,6 +193,108 @@ def run_evaluation_sync(test_data: List[Dict], channels: List[str] = None):
 
         results = {}
         all_predictions = [{'text': t, 'true_label': l} for t, l in zip(texts, labels)]
+        
+        def _update_hybrid_stats():
+            hybrid_stats = hybrid_analyzer.get_stats()
+            results['hybrid']['fast_path_ratio'] = hybrid_stats['fast_path_ratio']
+            results['hybrid']['layer2_ratio'] = hybrid_stats['layer2_ratio']
+            results['hybrid']['layer3_ratio'] = hybrid_stats['layer3_ratio']
+            results['hybrid']['lexicon_threshold'] = hybrid_analyzer.config.get('lexicon_threshold', 0.70)
+            results['hybrid']['lexicon_score_threshold'] = hybrid_analyzer.config.get('lexicon_score_threshold', 3.0)
+            evaluation_status['hybrid_stats'] = hybrid_stats
+            evaluation_status['hybrid_config'] = {
+                'strategy': 'cascade',
+                'lexicon_threshold': hybrid_analyzer.config.get('lexicon_threshold', 0.70),
+                'lexicon_score_threshold': hybrid_analyzer.config.get('lexicon_score_threshold', 3.0)
+            }
+        
+        EVALUATION_CHANNELS = {
+            'model': {
+                'analyzer': model_analyzer,
+                'predict_method': 'predict',
+                'error_fields': {'confidence': 'confidence'},
+                'extra_fields': {},
+                'setup': None,
+                'post_process': None
+            },
+            'lexicon': {
+                'analyzer': lexicon_analyzer,
+                'predict_method': 'analyze',
+                'error_fields': {'score': 'score'},
+                'extra_fields': {},
+                'setup': None,
+                'post_process': None
+            },
+            'hybrid': {
+                'analyzer': hybrid_analyzer,
+                'predict_method': 'predict',
+                'error_fields': {'confidence': 'confidence', 'method': 'method'},
+                'extra_fields': {'method': 'method'},
+                'setup': lambda: hybrid_analyzer.reset_stats(),
+                'post_process': _update_hybrid_stats
+            }
+        }
+        
+        def _run_channel_evaluation(
+            channel_name: str,
+            analyzer,
+            predict_method: str,
+            error_fields: Dict[str, str],
+            extra_fields: Dict[str, str],
+            gpu_memory_peak: float,
+            setup_func=None,
+            post_process_func=None
+        ) -> tuple:
+            evaluation_status['current_analyzer'] = channel_name
+            evaluation_status['progress'] = 0
+            
+            predictions = []
+            times = []
+            local_gpu_peak = gpu_memory_peak
+            
+            if setup_func:
+                setup_func()
+            
+            predict_func = getattr(analyzer, predict_method)
+            
+            for i, text in enumerate(texts):
+                start_time = time.time()
+                result = predict_func(text)
+                elapsed_time = (time.time() - start_time) * 1000
+                times.append(elapsed_time)
+                
+                predictions.append(result['sentiment'])
+                all_predictions[i][f'{channel_name}_pred'] = result['sentiment']
+                all_predictions[i][f'{channel_name}_time'] = elapsed_time
+                
+                for field_name, result_key in extra_fields.items():
+                    if result_key in result:
+                        all_predictions[i][f'{channel_name}_{field_name}'] = result[result_key]
+                
+                if labels[i] != result['sentiment']:
+                    error_sample = {
+                        'text': text,
+                        'true_label': labels[i],
+                        'pred_label': result['sentiment']
+                    }
+                    for field_name, result_key in error_fields.items():
+                        if result_key in result:
+                            error_sample[field_name] = result[result_key]
+                    
+                    evaluation_status['error_samples'][channel_name].append(error_sample)
+                
+                evaluation_status['progress'] = i + 1
+                
+                gpu_info = system_monitor.get_gpu_memory_info()
+                current_mb = gpu_info.allocated_mb
+                if current_mb > local_gpu_peak:
+                    local_gpu_peak = current_mb
+                evaluation_status['gpu_memory'] = {'current_mb': current_mb, 'peak_mb': local_gpu_peak}
+            
+            if post_process_func:
+                post_process_func()
+            
+            return predictions, times, local_gpu_peak
 
         if 'model' in channels:
             evaluation_status['current_analyzer'] = 'model'
