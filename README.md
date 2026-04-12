@@ -345,26 +345,6 @@ Excel 文件（.xlsx）需包含以下列：
 | `文本` | 待分析的文本内容 | 必需 | "这个产品质量很好" |
 | `标签` | 情感标签 | 必需 | `正面`、`负面`、`中性` |
 
-### 情感词典
-
-```
-# 正面词典 (positive_words.txt) — 格式：词,权重
-不错,2
-满意,3
-
-# 负面词典 (negative_words.txt) — 格式：词,权重（负数）
-差,-2
-失望,-2
-
-# 程度副词 (degree_words.txt) — 格式：词,倍率
-非常,1.8
-很,1.5
-
-# 否定词 (negation_words.txt) — 每行一个词
-不
-没
-```
-
 ## 系统架构
 
 ```
@@ -401,3 +381,4 @@ oolongho
 - [FunASR](https://github.com/modelscope/FunASR) — 语音识别
 - [HowNet](https://openhownet.thunlp.org/) — 知网情感词典
 - [NTUSD](https://github.com/ntunlplab/NTUSD) — 台湾大学情感词典
+
