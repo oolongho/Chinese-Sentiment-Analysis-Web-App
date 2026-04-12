@@ -296,7 +296,7 @@ async def analyze_hybrid(request: HybridAnalysisRequest):
     
     结合深度学习与词典方法，提供：
     1. 级联加速：简单案例用词典（快速），复杂案例用深度学习（准确）
-    2. 置信度加权：根据两种方法的置信度动态融合结果
+    2. 置信度加权：根据两种方法的置信度动态混合结果
     3. 规则修正：用词典规则修正深度学习的明显错误
     """
     text = request.text.strip()

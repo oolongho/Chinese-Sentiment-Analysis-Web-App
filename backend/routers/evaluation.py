@@ -612,7 +612,7 @@ async def export_evaluation_results(format: str = 'csv', _: bool = Depends(get_c
         analyzer_names = {
             'model': '深度学习模型',
             'lexicon': '情感词典',
-            'hybrid': '融合引擎',
+            'hybrid': '混合推理',
             'external': '外部 API'
         }
         
@@ -641,9 +641,9 @@ async def export_evaluation_results(format: str = 'csv', _: bool = Depends(get_c
                     '深度学习模型响应时间 (ms)': f"{pred.get('model_time', 0):.2f}",
                     '情感词典预测': pred.get('lexicon_pred', ''),
                     '情感词典响应时间 (ms)': f"{pred.get('lexicon_time', 0):.2f}",
-                    '融合引擎预测': pred.get('hybrid_pred', ''),
-                    '融合引擎响应时间 (ms)': f"{pred.get('hybrid_time', 0):.2f}",
-                    '融合引擎方法': pred.get('hybrid_method', '')
+                    '混合推理预测': pred.get('hybrid_pred', ''),
+                    '混合推理响应时间 (ms)': f"{pred.get('hybrid_time', 0):.2f}",
+                    '混合推理方法': pred.get('hybrid_method', '')
                 }
                 if 'external_pred' in pred:
                     row['外部 API 预测'] = pred['external_pred']
@@ -709,7 +709,7 @@ async def generate_evaluation_charts():
         analyzer_names = {
             'model': '深度学习模型',
             'lexicon': '情感词典',
-            'hybrid': '融合引擎',
+            'hybrid': '混合推理',
             'external': '外部 API'
         }
         

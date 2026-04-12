@@ -1,7 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-梯度×嵌入法情感词提取器
+基于梯度显著性的领域词提取器
 
 从训练数据集中利用 RoBERTa 模型的梯度信息自动提取候选情感词。
 优化：使用 jieba 分词对齐，避免单字碎片，合并同词内高梯度字为完整候选词。
@@ -62,7 +62,7 @@ DEFAULT_CONFIG = {
 
 
 class GradientExtractor:
-    """梯度×嵌入法情感词提取器"""
+    """基于梯度显著性的领域词提取器"""
 
     def __init__(
         self,

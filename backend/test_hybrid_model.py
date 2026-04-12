@@ -61,7 +61,7 @@ def test_hybrid_api():
                     'confidence': result.get('confidence', 0),
                 })
                 
-                method_badge = "[FAST] 词典快速" if result.get('method') == 'lexicon_fast' else "[FUSION] 混合融合"
+                method_badge = "[FAST] 词典快速" if result.get('method') == 'lexicon_fast' else "[FUSION] 混合推理"
                 print(f"\n[{i}] {method_badge}")
                 print(f"    文本：{text[:50]}...")
                 print(f"    情感：{result.get('sentiment')} (置信度：{result.get('confidence', 0):.2%})")
@@ -146,7 +146,7 @@ def test_text_analysis_page():
             'localStorage 持久化': 'localStorage' in content and 'useHybridMode' in content,
             'Toggle 开关': 'Toggle' in content or '开关' in content,
             '混合 API 调用': '/analyze/hybrid' in content,
-            '方法标签显示': '词典快速' in content or '混合融合' in content,
+            '方法标签显示': '词典快速' in content or '混合推理' in content,
             '推理耗时显示': 'inference_time' in content or 'ms' in content,
         }
         

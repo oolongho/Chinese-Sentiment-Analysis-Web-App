@@ -31,7 +31,7 @@ def test_hybrid_api():
             if response.status_code == 200:
                 result = response.json()
                 method = result.get('method', 'unknown')
-                method_cn = "词典快速" if method == 'lexicon_fast' else "混合融合"
+                method_cn = "词典快速" if method == 'lexicon_fast' else "混合推理"
                 print(f"\n[{i}] {method_cn}")
                 print(f"    文本：{text[:40]}...")
                 print(f"    情感：{result.get('sentiment')} (置信度：{result.get('confidence', 0):.2%})")

@@ -565,7 +565,7 @@ class ExtractionConfigRequest(BaseModel):
 @router.post("/gradient-extract")
 async def perform_gradient_extraction(config: ExtractionConfigRequest):
     """
-    执行梯度×嵌入法情感词提取（SSE 流式进度推送）
+    执行基于梯度显著性的领域词提取（SSE 流式进度推送）
     
     流程：
     1. 加载已上传的数据集（extraction_dataset.xlsx）

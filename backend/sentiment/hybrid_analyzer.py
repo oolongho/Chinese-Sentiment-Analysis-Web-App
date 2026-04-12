@@ -39,8 +39,8 @@ class HybridAnalyzer:
             'max_fast_path_length': 30,         # 快速路径最大文本长度
             'min_sentiment_words': 1,           # 最少情感词数量
             'dl_confidence_threshold': 0.85,   # DL 置信度阈值
-            'fusion_lexicon_weight': 0.40,     # 融合时词典权重
-            'fusion_dl_weight': 0.60,          # 融合时 DL 权重
+            'fusion_lexicon_weight': 0.40,     # 混合时词典权重
+            'fusion_dl_weight': 0.60,          # 混合时 DL 权重
             'low_confidence_mark': True,       # 是否标记低置信度结果
         }
         self.config = {**self.default_config, **self.config}
@@ -55,7 +55,7 @@ class HybridAnalyzer:
             'cascade_fast_path': 0,  # 级联快速路径次数 (Layer 1)
             'cascade_slow_path': 0,  # 级联慢速路径次数 (Layer 2 + Layer 3)
             'layer2_direct_return': 0,  # Layer 2 直返次数
-            'layer3_fusion': 0,  # Layer 3 融合次数
+            'layer3_fusion': 0,  # Layer 3 混合次数
         }
     
     def predict(self, text: str) -> Dict[str, Any]:
@@ -120,9 +120,9 @@ class HybridAnalyzer:
         self.stats['cascade_slow_path'] += 1
         roberta_result = self.model_analyzer.predict(text)
         
-        # 步骤 4：融合结果（以深度学习为主，词典为辅）
+        # 步骤 4：混合结果（以深度学习为主，词典为辅）
         if lexicon_result['sentiment'] != roberta_result['sentiment']:
-            # 两者不一致，需要融合
+            # 两者不一致，需要混合
             if lexicon_confidence > 0.9 and lexicon_score > 4:
                 # 词典非常确定，采用词典
                 final_sentiment = lexicon_result['sentiment']
@@ -150,7 +150,7 @@ class HybridAnalyzer:
         置信度加权策略
         
         1. 同时运行两种方法
-        2. 根据置信度加权融合
+        2. 根据置信度加权混合
         """
         # 同时运行两种方法
         lexicon_result = self.lexicon_analyzer.analyze(text)
@@ -178,10 +178,10 @@ class HybridAnalyzer:
             lexicon_weight = lexicon_base
             roberta_weight = roberta_base
         
-        # 融合置信度
+        # 混合置信度
         final_confidence = (lexicon_conf * lexicon_weight + roberta_conf * roberta_weight)
         
-        # 融合情感（以权重高的为准）
+        # 混合情感（以权重高的为准）
         if roberta_weight > 0.6:
             final_sentiment = roberta_result['sentiment']
             final_scores = roberta_result.get('scores', {})
@@ -303,7 +303,7 @@ class HybridAnalyzer:
                 'roberta_result': roberta_result,
             }
         
-        # Layer 3: 低置信度融合
+        # Layer 3: 低置信度混合
         final_sentiment, final_confidence = self._fuse_low_confidence(
             lexicon_result, roberta_result
         )
@@ -339,7 +339,7 @@ class HybridAnalyzer:
         return result
     
     def _fuse_low_confidence(self, lexicon_result, roberta_result):
-        """低置信度结果融合"""
+        """低置信度结果混合"""
         w_lex = self.config.get('fusion_lexicon_weight', 0.40)
         w_dl = self.config.get('fusion_dl_weight', 0.60)
         
