@@ -16,6 +16,12 @@ async def call_text_api(text: str) -> Dict:
     """
     config = load_external_api_config()
     
+    if not config.get('text_enabled', False):
+        return {
+            'success': False,
+            'error': '文本分析API已禁用'
+        }
+    
     api_key = config.get('text_api_key', '')
     base_url = config.get('text_base_url', '')
     model = config.get('text_model', '')
@@ -111,6 +117,12 @@ async def call_audio_api(audio_path: str) -> Dict:
         转写和分析结果
     """
     config = load_external_api_config()
+    
+    if not config.get('audio_enabled', False):
+        return {
+            'success': False,
+            'error': '语音分析API已禁用'
+        }
     
     api_key = config.get('audio_api_key', '')
     base_url = config.get('audio_base_url', '')
