@@ -56,9 +56,11 @@ class RemoveWordRequest(BaseModel):
 
 
 class ExternalApiConfig(BaseModel):
+    text_enabled: Optional[bool] = None
     text_api_key: Optional[str] = None
     text_base_url: Optional[str] = None
     text_model: Optional[str] = None
+    audio_enabled: Optional[bool] = None
     audio_api_key: Optional[str] = None
     audio_base_url: Optional[str] = None
     audio_model: Optional[str] = None
@@ -475,6 +477,8 @@ async def update_external_api_config(
     
     current_config = load_external_api_config()
     
+    if config.text_enabled is not None:
+        current_config['text_enabled'] = config.text_enabled
     if config.text_api_key is not None and not config.text_api_key.startswith('***'):
         current_config['text_api_key'] = config.text_api_key
     if config.text_base_url is not None:
@@ -482,6 +486,8 @@ async def update_external_api_config(
     if config.text_model is not None:
         current_config['text_model'] = config.text_model
     
+    if config.audio_enabled is not None:
+        current_config['audio_enabled'] = config.audio_enabled
     if config.audio_api_key is not None and not config.audio_api_key.startswith('***'):
         current_config['audio_api_key'] = config.audio_api_key
     if config.audio_base_url is not None:
@@ -524,6 +530,33 @@ async def check_external_api_config(authorization: Optional[str] = Header(None))
         'audio_enabled': audio_enabled,
         'text_model': config.get('text_model', ''),
         'audio_model': config.get('audio_model', '')
+    }
+
+
+@router.get('/external-api/status')
+async def get_external_api_status():
+    """获取外部API启用状态（公开接口，无需认证）"""
+    config = load_external_api_config()
+
+    text_enabled = config.get('text_enabled', False)
+    audio_enabled = config.get('audio_enabled', False)
+
+    text_configured = bool(
+        text_enabled and
+        config.get('text_api_key') and
+        config.get('text_base_url') and
+        config.get('text_model')
+    )
+    audio_configured = bool(
+        audio_enabled and
+        config.get('audio_api_key') and
+        config.get('audio_base_url') and
+        config.get('audio_model')
+    )
+
+    return {
+        'text_enabled': text_enabled and text_configured,
+        'audio_enabled': audio_enabled and audio_configured
     }
 
 

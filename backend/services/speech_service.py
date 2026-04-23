@@ -1,7 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-FunASR 语音识别服务
+语音识别服务
 功能：
 1. 按需加载 Paraformer-medium 模型
 2. 支持标点恢复

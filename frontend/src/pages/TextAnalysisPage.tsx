@@ -131,15 +131,10 @@ const TextAnalysisPage: React.FC = () => {
 
   const checkExternalApi = async () => {
     try {
-      const token = localStorage.getItem('training_token');
-      if (token) {
-        const response = await fetch(`${API_ENDPOINTS.training}/external-api/check`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setTextApiEnabled(data.text_enabled || false);
-        }
+      const response = await fetch(`${API_ENDPOINTS.training}/external-api/status`);
+      if (response.ok) {
+        const data = await response.json();
+        setTextApiEnabled(data.text_enabled || false);
       }
     } catch {
       // 忽略错误
@@ -160,9 +155,20 @@ const TextAnalysisPage: React.FC = () => {
     
     try {
       let localData;
+      let externalResults: any[] = [];
+      
+      if (textApiEnabled) {
+        const externalResponse = await fetch(`${API_ENDPOINTS.text}/analyze/external/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texts: textLines })
+        });
+        if (externalResponse.ok) {
+          externalResults = await externalResponse.json().then(d => d.results);
+        }
+      }
       
       if (useHybridMode) {
-        // 混合模式：逐条调用混合分析 API（串行处理，避免并发 GPU 推理冲突）
         const hybridResults: any[] = [];
         for (const text of textLines) {
           const response = await fetch(`${API_ENDPOINTS.text}/analyze/hybrid`, {
@@ -182,7 +188,6 @@ const TextAnalysisPage: React.FC = () => {
           hybrid_stats: hybridResults[0]?.hybrid_stats || null
         };
       } else {
-        // 普通模式：批量调用
         const response = await fetch(`${API_ENDPOINTS.text}/analyze/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -196,9 +201,9 @@ const TextAnalysisPage: React.FC = () => {
       }
       
       const results: AnalysisResult[] = localData.results.map((item: any, index: number) => {
+        const externalResult = externalResults[index] || null;
+        
         if (useHybridMode) {
-          // 混合模式结果映射
-          // 优先使用 roberta_result/lexicon_result，fallback 到顶层字段（处理快速路径场景）
           const robertaSentiment = item.roberta_result?.sentiment || item.sentiment;
           const robertaConfidence = item.roberta_result?.confidence ?? item.confidence;
           const lexiconSentiment = item.lexicon_result?.sentiment || item.sentiment;
@@ -237,11 +242,19 @@ const TextAnalysisPage: React.FC = () => {
                 gpuPeak: 0,
                 gpuAvg: 0
               },
-              external: null
+              external: externalResult ? {
+                success: externalResult.success,
+                sentiment: externalResult.sentiment === '正面' ? 'positive' : 
+                           externalResult.sentiment === '负面' ? 'negative' : 'neutral',
+                confidence: externalResult.confidence || 0,
+                reasoning: externalResult.reasoning || '',
+                model: externalResult.model || '',
+                analysisTime: externalResult.processing_time || 0,
+                error: externalResult.error || ''
+              } : null
             }
           };
         } else {
-          // 普通模式结果映射
           return {
             text: textLines[index],
             modelType: 'batch',
@@ -269,7 +282,16 @@ const TextAnalysisPage: React.FC = () => {
                 gpuPeak: item.lexicon_result.gpu_peak,
                 gpuAvg: item.lexicon_result.gpu_avg
               },
-              external: null
+              external: externalResult ? {
+                success: externalResult.success,
+                sentiment: externalResult.sentiment === '正面' ? 'positive' : 
+                           externalResult.sentiment === '负面' ? 'negative' : 'neutral',
+                confidence: externalResult.confidence || 0,
+                reasoning: externalResult.reasoning || '',
+                model: externalResult.model || '',
+                analysisTime: externalResult.processing_time || 0,
+                error: externalResult.error || ''
+              } : null
             }
           };
         }

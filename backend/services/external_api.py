@@ -1,9 +1,3 @@
-# !/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-外部API调用服务
-"""
-
 import httpx
 import base64
 from typing import Dict, Optional
