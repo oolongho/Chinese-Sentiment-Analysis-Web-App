@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 音频分析路由
-支持 FunASR 本地语音识别和外部 API
 """
 
 import os

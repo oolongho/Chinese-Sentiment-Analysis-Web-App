@@ -2,17 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 量化服务模块
-功能：
-1. INT8 动态量化 - 将 FP32 模型量化为 INT8 精度
-2. 量化模型加载 - 支持加载 FP32 或 INT8 模型
-3. 显存监控 - 实时查询 GPU 显存使用情况
-4. 量化状态查询 - 获取当前量化配置和模型信息
-
-技术细节：
-- 使用 PyTorch 动态量化（只量化 Linear 层）
-- FP32 模型路径：backend/models/roberta_finetuned/
-- INT8 模型路径：backend/models/roberta_finetuned_int8/
-- 单例模式管理模型实例，避免重复加载
 """
 
 import os

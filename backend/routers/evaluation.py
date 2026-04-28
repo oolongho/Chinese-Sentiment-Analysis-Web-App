@@ -1,7 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-模型评估路由
+模型评估
 """
 
 import os

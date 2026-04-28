@@ -1,6 +1,6 @@
 {
   "last_analysis": {
-    "completed_at": "2026-04-24T01:31:48.951940",
+    "completed_at": "2026-04-27T23:32:09.428246",
     "input_text": "收到货仔细检查了一遍，包装很严实，商品质量很好，和描述一致，满意。\n之前买过别家的质量不好，这次买这个质量很好，价格也实惠，很满意。\n对比了好几家最后选了这家，果然没让我失望，质量很好，做工精细。",
     "results": [
       {
@@ -9,23 +9,23 @@
           "sentiment": "正面",
           "score": 0.9444,
           "confidence": 0.9444,
-          "processing_time": 0.0307,
+          "processing_time": 0.1868,
           "sentiment_words": null,
           "scores": {
             "正面": 0.9444,
             "中性": 0.0267,
             "负面": 0.0289
           },
-          "cpu_peak": 0.0,
-          "cpu_avg": 0.0,
-          "gpu_peak": 6.0,
-          "gpu_avg": 6.0
+          "cpu_peak": 37.5,
+          "cpu_avg": 23.21666666666667,
+          "gpu_peak": 26.0,
+          "gpu_avg": 26.0
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 11.0,
           "confidence": 0.7075,
-          "processing_time": 0.0348,
+          "processing_time": 0.0269,
           "sentiment_words": [
             {
               "word": "严实",
@@ -65,23 +65,23 @@
           "sentiment": "正面",
           "score": 0.9437,
           "confidence": 0.9437,
-          "processing_time": 0.0309,
+          "processing_time": 0.058,
           "sentiment_words": null,
           "scores": {
             "正面": 0.9437,
             "中性": 0.0271,
             "负面": 0.0292
           },
-          "cpu_peak": 0.0,
-          "cpu_avg": 0.0,
-          "gpu_peak": 6.0,
-          "gpu_avg": 6.0
+          "cpu_peak": 21.4,
+          "cpu_avg": 10.7,
+          "gpu_peak": 26.0,
+          "gpu_avg": 26.0
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 7.0,
           "confidence": 0.607,
-          "processing_time": 0.0258,
+          "processing_time": 0.0,
           "sentiment_words": [
             {
               "word": "不好",
@@ -121,23 +121,23 @@
           "sentiment": "正面",
           "score": 0.9453,
           "confidence": 0.9453,
-          "processing_time": 0.0295,
+          "processing_time": 0.0608,
           "sentiment_words": null,
           "scores": {
             "正面": 0.9453,
             "中性": 0.0255,
             "负面": 0.0291
           },
-          "cpu_peak": 26.1,
-          "cpu_avg": 26.1,
-          "gpu_peak": 6.0,
-          "gpu_avg": 6.0
+          "cpu_peak": 20.8,
+          "cpu_avg": 10.4,
+          "gpu_peak": 66.0,
+          "gpu_avg": 66.0
         },
         "lexicon_result": {
           "sentiment": "正面",
           "score": 8.0,
           "confidence": 0.6907,
-          "processing_time": 0.0275,
+          "processing_time": 0.0309,
           "sentiment_words": [
             {
               "word": "失望",

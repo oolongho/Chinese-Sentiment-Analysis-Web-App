@@ -35,7 +35,6 @@ class HybridAnalyzer:
             'lexicon_score_threshold': 3.0,  # 词典得分阈值（论文推荐值）
             'roberta_weight': 0.7,  # RoBERTa 权重
             'enable_speed_optimization': True,  # 启用速度优化
-            # 新增增强参数
             'max_fast_path_length': 30,         # 快速路径最大文本长度
             'min_sentiment_words': 1,           # 最少情感词数量
             'dl_confidence_threshold': 0.85,   # DL 置信度阈值
@@ -61,12 +60,6 @@ class HybridAnalyzer:
     def predict(self, text: str) -> Dict[str, Any]:
         """
         预测文本情感
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            预测结果字典
         """
         start_time = time.time()
         
@@ -214,10 +207,6 @@ class HybridAnalyzer:
     def _predict_rule_based(self, text: str) -> Dict[str, Any]:
         """
         规则修正策略
-        
-        1. 深度学习预测
-        2. 词典方法检测特殊情况
-        3. 用规则修正明显错误
         """
         # 深度学习预测
         roberta_result = self.model_analyzer.predict(text)

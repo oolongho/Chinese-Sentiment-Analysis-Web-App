@@ -1,7 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-文本分析路由
+文本分析
 """
 
 import time

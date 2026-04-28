@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-混合模型对比实验 API
-提供深度学习、词典方法、混合模型的对比实验功能
+混合
 """
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -55,11 +54,6 @@ class ComparisonResponse(BaseModel):
 async def compare_sentiment_methods(request: ComparisonRequest, _: bool = Depends(get_current_user)):
     """
     对比深度学习、词典方法、混合模型的性能
-    
-    对比维度：
-    1. 推理速度（平均推理时间）
-    2. 预测结果一致性
-    3. 置信度分布
     """
     try:
         if not request.texts:

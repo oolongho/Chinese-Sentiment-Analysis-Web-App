@@ -1,7 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-路由模块
+路由
 """
 
 from routers.text_analysis import router as text_analysis_router

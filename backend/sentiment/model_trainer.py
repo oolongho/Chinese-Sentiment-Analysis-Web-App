@@ -1,12 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-深度学习模型训练脚本
-功能：
-1. 加载标注数据
-2. 准备训练数据集
-3. 微调 chinese-roberta-wwm-ext 模型
-4. 评估和保存模型
+训练脚本
 """
 
 import os

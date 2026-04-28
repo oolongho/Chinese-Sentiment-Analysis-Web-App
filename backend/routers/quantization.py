@@ -2,13 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 量化 API 路由
-提供模型量化相关的 RESTful API 接口：
-1. POST /api/quantization/quantize/fp16 - 执行 FP16 量化
-2. POST /api/quantization/quantize/int8 - 执行 INT8 量化
-3. GET /api/quantization/status - 查询量化状态
-4. POST /api/quantization/switch - 切换全局精度模式
-5. GET /api/quantization/mode - 获取当前全局精度模式
-6. POST /api/quantization/compare - 运行对比实验
 """
 
 import time

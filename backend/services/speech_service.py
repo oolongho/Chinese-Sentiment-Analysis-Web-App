@@ -1,12 +1,7 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-语音识别服务
-功能：
-1. 按需加载 Paraformer-medium 模型
-2. 支持标点恢复
-3. 闲置自动卸载（10分钟）
-4. GPU 显存监控
+语音识别
 """
 
 import os
