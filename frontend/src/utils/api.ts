@@ -27,7 +27,7 @@ class ApiClient {
     };
   }
 
-  private async handleResponse<T>(response: Response, showErrorMessage: boolean): Promise<ApiResponse<T>> {
+  private async checkResponseErrors(response: Response, showErrorMessage: boolean, errorPrefix: string = '请求失败'): Promise<string | null> {
     if (response.status === 401) {
       localStorage.removeItem('training_token');
       if (showErrorMessage) {
@@ -36,14 +36,11 @@ class ApiClient {
       if (window.location.pathname !== '/training') {
         window.location.href = '/training';
       }
-      return {
-        success: false,
-        detail: '登录已过期，请重新登录',
-      };
+      return '登录已过期，请重新登录';
     }
 
     if (!response.ok) {
-      let detail = `请求失败: ${response.status}`;
+      let detail = `${errorPrefix}: ${response.status}`;
       try {
         const errorData = await response.json();
         if (Array.isArray(errorData.detail)) {
@@ -57,7 +54,16 @@ class ApiClient {
       if (showErrorMessage) {
         alert(detail);
       }
-      return { success: false, detail };
+      return detail;
+    }
+
+    return null;
+  }
+
+  private async handleResponse<T>(response: Response, showErrorMessage: boolean): Promise<ApiResponse<T>> {
+    const error = await this.checkResponseErrors(response, showErrorMessage);
+    if (error) {
+      return { success: false, detail: error };
     }
 
     try {
@@ -191,26 +197,8 @@ class ApiClient {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      if (response.status === 401) {
-        localStorage.removeItem('training_token');
-        if (showErrorMessage) {
-          alert('登录已过期，请重新登录');
-        }
-        if (window.location.pathname !== '/training') {
-          window.location.href = '/training';
-        }
-        return false;
-      }
-
-      if (!response.ok) {
-        let detail = `下载失败: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          detail = errorData.detail || errorData.message || detail;
-        } catch {}
-        if (showErrorMessage) {
-          alert(detail);
-        }
+      const error = await this.checkResponseErrors(response, showErrorMessage, '下载失败');
+      if (error) {
         return false;
       }
 
