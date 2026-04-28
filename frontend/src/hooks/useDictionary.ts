@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { apiClient } from '../utils/api';
 import type {
   DictionaryWord,
   DictionaryStats,
@@ -24,109 +25,71 @@ export const useDictionary = (token: string) => {
   const [activeDictionary, setActiveDictionary] = useState<DictionaryType>('positive');
 
   const loadDictionaryStats = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDictionaryStats(data);
-      }
-    } catch (error) {
-      console.error('加载词典统计失败:', error);
+    const result = await apiClient.get<DictionaryStats>(
+      `${API_ENDPOINTS.training}/dictionary/stats`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data) {
+      setDictionaryStats(result.data);
     }
-  }, [token]);
+  }, []);
 
   const loadDictionary = useCallback(async (type: DictionaryType) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/dictionary?type=${type}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDictionaryWords(prev => ({ ...prev, [type]: data.words }));
-      }
-    } catch (error) {
-      console.error('加载词典失败:', error);
+    const result = await apiClient.get<{ words: DictionaryWord[] }>(
+      `${API_ENDPOINTS.training}/dictionary?type=${type}`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data) {
+      setDictionaryWords(prev => ({ ...prev, [type]: result.data!.words }));
     }
-  }, [token]);
+  }, []);
 
   const addWord = useCallback(async (type: DictionaryType, word: string, score: number) => {
     if (!word.trim()) return false;
 
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          type,
-          word,
-          score
-        })
-      });
+    const result = await apiClient.post(
+      `${API_ENDPOINTS.training}/dictionary/add`,
+      { type, word, score },
+      { showErrorMessage: false }
+    );
 
-      if (response.ok) {
-        loadDictionary(type);
-        loadDictionaryStats();
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('添加词汇失败:', error);
-      return false;
+    if (result.success) {
+      loadDictionary(type);
+      loadDictionaryStats();
+      return true;
     }
-  }, [token, loadDictionary, loadDictionaryStats]);
+    return false;
+  }, [loadDictionary, loadDictionaryStats]);
 
   const removeWord = useCallback(async (type: DictionaryType, word: string) => {
     if (!confirm(`确定要删除词汇 "${word}" 吗？`)) return false;
 
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/remove`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          type,
-          word
-        })
-      });
+    const result = await apiClient.post(
+      `${API_ENDPOINTS.training}/dictionary/remove`,
+      { type, word },
+      { showErrorMessage: false }
+    );
 
-      if (response.ok) {
-        loadDictionary(type);
-        loadDictionaryStats();
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('删除词汇失败:', error);
-      return false;
+    if (result.success) {
+      loadDictionary(type);
+      loadDictionaryStats();
+      return true;
     }
-  }, [token, loadDictionary, loadDictionaryStats]);
+    return false;
+  }, [loadDictionary, loadDictionaryStats]);
 
   const syncDictionary = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/dictionary/reload`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+    const result = await apiClient.post<{ message?: string }>(
+      `${API_ENDPOINTS.training}/dictionary/reload`,
+      undefined,
+      { showErrorMessage: false }
+    );
 
-      if (response.ok) {
-        const data = await response.json();
-        return { success: true, message: data.message || '词典同步成功！' };
-      } else {
-        const error = await response.json();
-        return { success: false, message: error.detail || '词典同步失败' };
-      }
-    } catch (error) {
-      console.error('同步词典失败:', error);
-      return { success: false, message: '词典同步失败，请重试' };
+    if (result.success && result.data) {
+      return { success: true, message: result.data.message || '词典同步成功！' };
     }
-  }, [token]);
+    return { success: false, message: result.detail || '词典同步失败' };
+  }, []);
 
   const handleDictionaryChange = useCallback((type: DictionaryType) => {
     setActiveDictionary(type);
@@ -134,11 +97,9 @@ export const useDictionary = (token: string) => {
   }, [loadDictionary]);
 
   return {
-    // State
     dictionaryStats,
     dictionaryWords,
     activeDictionary,
-    // Actions
     setActiveDictionary,
     loadDictionaryStats,
     loadDictionary,

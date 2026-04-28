@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { apiClient } from '../utils/api';
 import type {
   TrainingParams,
   TrainingStatus,
@@ -32,110 +33,77 @@ export const useTraining = (token: string) => {
   const statusPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const pollTrainingStatus = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTrainingStatus(data);
-        if (data.status === 'training') {
-          fetchTrainingHistory();
-        }
+    const result = await apiClient.get<TrainingStatus>(
+      `${API_ENDPOINTS.training}/status`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data) {
+      setTrainingStatus(result.data);
+      if (result.data.status === 'training') {
+        fetchTrainingHistory();
       }
-    } catch (error) {
-      console.error('获取训练状态失败:', error);
     }
-  }, [token]);
+  }, []);
 
   const fetchTrainingHistory = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/history`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTrainingHistory(data);
-      }
-    } catch (error) {
-      console.error('获取训练历史失败:', error);
+    const result = await apiClient.get<TrainingHistory>(
+      `${API_ENDPOINTS.training}/history`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data) {
+      setTrainingHistory(result.data);
     }
-  }, [token]);
+  }, []);
 
   const loadUploadedData = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/uploaded-data`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUploadedData(data);
-      }
-    } catch (error) {
-      console.error('加载上传数据信息失败:', error);
+    const result = await apiClient.get<UploadedData>(
+      `${API_ENDPOINTS.training}/uploaded-data`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data) {
+      setUploadedData(result.data);
     }
-  }, [token]);
+  }, []);
 
   const loadTrainingStatus = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTrainingStatus(data);
-      }
-    } catch (error) {
-      console.error('加载训练状态失败:', error);
+    const result = await apiClient.get<TrainingStatus>(
+      `${API_ENDPOINTS.training}/status`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data) {
+      setTrainingStatus(result.data);
     }
-  }, [token]);
+  }, []);
 
   const loadCachedTrainingResult = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/cached-result`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.cached_result) {
-          setCachedTrainingResult(data.cached_result);
-          if (data.cached_result.history) {
-            setTrainingHistory(data.cached_result.history);
-          }
-        }
+    const result = await apiClient.get<{ success: boolean; cached_result?: CachedTrainingResult }>(
+      `${API_ENDPOINTS.training}/cached-result`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data?.cached_result) {
+      setCachedTrainingResult(result.data.cached_result);
+      if (result.data.cached_result.history) {
+        setTrainingHistory(result.data.cached_result.history);
       }
-    } catch (error) {
-      console.error('加载训练缓存失败:', error);
     }
-  }, [token]);
+  }, []);
 
   const handleFileUpload = useCallback(async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
+    const result = await apiClient.uploadFile<{ count?: number; detail?: string }>(
+      `${API_ENDPOINTS.training}/upload-data`,
+      file,
+      { showErrorMessage: false }
+    );
 
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/upload-data`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert(`上传成功！共 ${data.count} 条数据`);
-        loadUploadedData();
-        return true;
-      } else {
-        alert(data.detail || '上传失败');
-        return false;
-      }
-    } catch (error) {
-      console.error('上传失败:', error);
-      alert('上传失败，请重试');
+    if (result.success && result.data) {
+      alert(`上传成功！共 ${result.data.count} 条数据`);
+      loadUploadedData();
+      return true;
+    } else {
+      alert(result.detail || '上传失败');
       return false;
     }
-  }, [token, loadUploadedData]);
+  }, [loadUploadedData]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -170,85 +138,61 @@ export const useTraining = (token: string) => {
       return false;
     }
 
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/start`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+    const result = await apiClient.post<{ detail?: string }>(
+      `${API_ENDPOINTS.training}/start`,
+      undefined,
+      { showErrorMessage: false }
+    );
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setTrainingStatus(prev => ({ ...prev, status: 'training', message: '训练已启动...' }));
-        return true;
-      } else {
-        alert(data.detail || '启动训练失败');
-        return false;
-      }
-    } catch (error) {
-      console.error('启动训练失败:', error);
-      alert('启动训练失败，请重试');
+    if (result.success) {
+      setTrainingStatus(prev => ({ ...prev, status: 'training', message: '训练已启动...' }));
+      return true;
+    } else {
+      alert(result.detail || '启动训练失败');
       return false;
     }
-  }, [token, uploadedData.uploaded]);
+  }, [uploadedData.uploaded]);
 
   const cancelTraining = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/cancel`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+    const result = await apiClient.post(
+      `${API_ENDPOINTS.training}/cancel`,
+      undefined,
+      { showErrorMessage: false }
+    );
 
-      if (response.ok) {
-        alert('训练已取消');
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('取消训练失败:', error);
-      return false;
+    if (result.success) {
+      alert('训练已取消');
+      return true;
     }
-  }, [token]);
+    return false;
+  }, []);
 
   const updateParams = useCallback(async (params: TrainingParams) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/params`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(params)
-      });
+    const result = await apiClient.post(
+      `${API_ENDPOINTS.training}/params`,
+      params,
+      { showErrorMessage: false }
+    );
 
-      if (response.ok) {
-        alert('参数更新成功！');
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('更新参数失败:', error);
-      return false;
+    if (result.success) {
+      alert('参数更新成功！');
+      return true;
     }
-  }, [token]);
+    return false;
+  }, []);
 
   const loadParams = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/params`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        return data as TrainingParams;
-      }
-    } catch (error) {
-      console.error('加载参数失败:', error);
+    const result = await apiClient.get<TrainingParams>(
+      `${API_ENDPOINTS.training}/params`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data) {
+      return result.data;
     }
     return null;
-  }, [token]);
+  }, []);
 
   return {
-    // State
     uploadedData,
     trainingStatus,
     trainingHistory,
@@ -256,7 +200,6 @@ export const useTraining = (token: string) => {
     cachedTrainingResult,
     fileInputRef,
     statusPollingRef,
-    // Actions
     setTrainingStatus,
     setIsDragging,
     pollTrainingStatus,

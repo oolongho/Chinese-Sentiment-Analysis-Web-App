@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { apiClient } from '../utils/api';
 
 interface ModelStatus {
   available: boolean;
@@ -75,7 +76,7 @@ const AudioAnalysisPage: React.FC = () => {
       }
     };
   }, []);
-  
+
   useEffect(() => {
     if (audioFile) {
       if (audioUrl) {
@@ -86,32 +87,31 @@ const AudioAnalysisPage: React.FC = () => {
       setIsPlaying(false);
     }
   }, [audioFile]);
-  
+
   useEffect(() => {
     if (modelStatus?.loaded && modelStatus.idle_seconds !== undefined) {
       idleStartRef.current = Date.now() - modelStatus.idle_seconds * 1000;
     }
   }, [modelStatus?.loaded, modelStatus?.idle_seconds]);
-  
+
   useEffect(() => {
     if (!modelStatus?.loaded) return;
-    
+
     const interval = setInterval(() => {
       if (idleStartRef.current > 0) {
         const elapsed = Math.floor((Date.now() - idleStartRef.current) / 1000);
         setLocalIdleSeconds(elapsed);
       }
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [modelStatus?.loaded]);
 
   const loadModelStatus = async () => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.audio}/model-status`);
-      if (response.ok) {
-        const data = await response.json();
-        setModelStatus(data);
+      const result = await apiClient.get<ModelStatus>(`${API_ENDPOINTS.audio}/model-status`, { showErrorMessage: false });
+      if (result.success && result.data) {
+        setModelStatus(result.data);
       }
     } catch (err) {
       console.error('加载模型状态失败:', err);
@@ -120,12 +120,9 @@ const AudioAnalysisPage: React.FC = () => {
 
   const loadCachedResult = async () => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.audio}/cached-result`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.cached_result) {
-          setCachedResult(data.cached_result);
-        }
+      const result = await apiClient.get<{ cached_result: CachedResult | null }>(`${API_ENDPOINTS.audio}/cached-result`, { showErrorMessage: false });
+      if (result.success && result.data?.cached_result) {
+        setCachedResult(result.data.cached_result);
       }
     } catch (err) {
       console.error('加载缓存失败:', err);
@@ -147,7 +144,7 @@ const AudioAnalysisPage: React.FC = () => {
 
   const clearCache = async () => {
     try {
-      await fetch(`${API_ENDPOINTS.audio}/clear-cache`, { method: 'POST' });
+      await apiClient.post(`${API_ENDPOINTS.audio}/clear-cache`, undefined, { showErrorMessage: false });
       setCachedResult(null);
     } catch (err) {
       console.error('清除缓存失败:', err);
@@ -156,18 +153,17 @@ const AudioAnalysisPage: React.FC = () => {
 
   const loadModel = async () => {
     let pollIntervalId: ReturnType<typeof setInterval> | null = null;
-    
+
     try {
       setModelLoading(true);
       setError('');
-      
+
       pollIntervalId = setInterval(async () => {
         try {
-          const response = await fetch(`${API_ENDPOINTS.audio}/model-status`);
-          if (response.ok) {
-            const data = await response.json();
-            setModelStatus(data);
-            if (data.loaded || data.load_error || (!data.loading && !data.loaded)) {
+          const result = await apiClient.get<ModelStatus>(`${API_ENDPOINTS.audio}/model-status`, { showErrorMessage: false });
+          if (result.success && result.data) {
+            setModelStatus(result.data);
+            if (result.data.loaded || result.data.load_error || (!result.data.loading && !result.data.loaded)) {
               if (pollIntervalId) clearInterval(pollIntervalId);
               setModelLoading(false);
             }
@@ -176,11 +172,10 @@ const AudioAnalysisPage: React.FC = () => {
           console.error('轮询模型状态失败:', err);
         }
       }, 500);
-      
-      const response = await fetch(`${API_ENDPOINTS.audio}/load-model`, { method: 'POST' });
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.detail || '模型加载失败');
+
+      const result = await apiClient.post(`${API_ENDPOINTS.audio}/load-model`, undefined, { showErrorMessage: false });
+      if (!result.success) {
+        setError(result.detail || '模型加载失败');
         if (pollIntervalId) clearInterval(pollIntervalId);
         setModelLoading(false);
       }
@@ -194,22 +189,22 @@ const AudioAnalysisPage: React.FC = () => {
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     const allowedTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/m4a', 'audio/x-m4a', 'audio/webm', 'audio/ogg'];
     const allowedExtensions = ['.mp3', '.wav', '.m4a', '.webm', '.ogg'];
     const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-    
+
     if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
       setError('不支持的音频格式，请上传 MP3、WAV、M4A、WEBM 或 OGG 格式的文件');
       return;
     }
-    
+
     const maxSize = 100 * 1024 * 1024;
     if (file.size > maxSize) {
       setError('文件大小超过限制（最大 100MB），请压缩后重试');
       return;
     }
-    
+
     setAudioFile(file);
     setTranscription('');
     setSentences([]);
@@ -217,7 +212,7 @@ const AudioAnalysisPage: React.FC = () => {
     setIsFromCache(false);
     setWaveformReady(true);
     setError('');
-    
+
     const audio = new Audio(URL.createObjectURL(file));
     audio.onloadedmetadata = () => {
       setAudioDuration(audio.duration);
@@ -232,7 +227,7 @@ const AudioAnalysisPage: React.FC = () => {
       console.log('No audio loaded');
       return;
     }
-    
+
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -251,47 +246,35 @@ const AudioAnalysisPage: React.FC = () => {
     setLoading(true);
     setError('');
     setIsFromCache(false);
-    
-    try {
-      const formData = new FormData();
-      formData.append('file', audioFile);
-      
-      const response = await fetch(`${API_ENDPOINTS.audio}/analyze`, {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || '分析请求失败');
-      }
-      
-      const data = await response.json();
-      
-      setTranscription(data.transcription);
-      setSentences(data.sentences);
-      setOverallSentiment(data.overall_sentiment);
-      setAudioDuration(data.audio_duration);
-      setGpuMemory(data.gpu_memory);
-      setConfidence(data.confidence);
-      setCurrentPage(0);
-      
-      await loadModelStatus();
-      
-    } catch (err: any) {
-      console.error('分析失败:', err);
-      setError(err.message || '分析失败，请检查后端服务是否正常运行');
-    } finally {
+
+    const result = await apiClient.uploadFile(`${API_ENDPOINTS.audio}/analyze`, audioFile, { showErrorMessage: false });
+
+    if (!result.success) {
+      setError(result.detail || '分析请求失败');
       setLoading(false);
+      return;
     }
+
+    const data = result.data;
+
+    setTranscription(data.transcription);
+    setSentences(data.sentences);
+    setOverallSentiment(data.overall_sentiment);
+    setAudioDuration(data.audio_duration);
+    setGpuMemory(data.gpu_memory);
+    setConfidence(data.confidence);
+    setCurrentPage(0);
+
+    await loadModelStatus();
+    setLoading(false);
   };
 
   const getSentimentConfig = (sentiment: string) => {
     switch (sentiment) {
       case 'positive':
       case '正面':
-        return { 
-          bg: 'bg-gradient-to-r from-green-500 to-emerald-400', 
+        return {
+          bg: 'bg-gradient-to-r from-green-500 to-emerald-400',
           text: '正面情感',
           icon: '😊',
           lightBg: 'bg-green-50',
@@ -299,8 +282,8 @@ const AudioAnalysisPage: React.FC = () => {
         };
       case 'negative':
       case '负面':
-        return { 
-          bg: 'bg-gradient-to-r from-red-500 to-rose-400', 
+        return {
+          bg: 'bg-gradient-to-r from-red-500 to-rose-400',
           text: '负面情感',
           icon: '😔',
           lightBg: 'bg-red-50',
@@ -308,16 +291,16 @@ const AudioAnalysisPage: React.FC = () => {
         };
       case 'neutral':
       case '中性':
-        return { 
-          bg: 'bg-gradient-to-r from-yellow-500 to-amber-400', 
+        return {
+          bg: 'bg-gradient-to-r from-yellow-500 to-amber-400',
           text: '中性情感',
           icon: '😐',
           lightBg: 'bg-yellow-50',
           textColor: 'text-yellow-700'
         };
       default:
-        return { 
-          bg: 'bg-gray-500', 
+        return {
+          bg: 'bg-gray-500',
           text: '未知',
           icon: '❓',
           lightBg: 'bg-gray-50',
@@ -354,17 +337,16 @@ const AudioAnalysisPage: React.FC = () => {
           </p>
         </div>
 
-        {/* 模型状态卡片 */}
         {modelStatus && (
           <div className="bg-white rounded-3xl shadow-lg p-6 mb-8 border border-gray-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  modelStatus.loaded ? 'bg-green-100' : 
+                  modelStatus.loaded ? 'bg-green-100' :
                   modelStatus.loading ? 'bg-yellow-100' : 'bg-gray-100'
                 }`}>
                   <svg className={`w-6 h-6 ${
-                    modelStatus.loaded ? 'text-green-500' : 
+                    modelStatus.loaded ? 'text-green-500' :
                     modelStatus.loading ? 'text-yellow-500' : 'text-gray-400'
                   }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -373,8 +355,8 @@ const AudioAnalysisPage: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">语音识别模型</h3>
                   <p className="text-sm text-gray-500">
-                    {modelStatus.loading ? '加载中...' : 
-                     modelStatus.loaded ? `已加载 · 显存: ${modelStatus.gpu_memory_mb.toFixed(0)} MB` : 
+                    {modelStatus.loading ? '加载中...' :
+                     modelStatus.loaded ? `已加载 · 显存: ${modelStatus.gpu_memory_mb.toFixed(0)} MB` :
                      '未加载'}
                   </p>
                 </div>
@@ -430,7 +412,7 @@ const AudioAnalysisPage: React.FC = () => {
                   <span className="text-sm font-medium text-purple-600">{(modelStatus.load_progress * 100).toFixed(0)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-gradient-to-r from-purple-500 to-pink-400 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${modelStatus.load_progress * 100}%` }}
                   ></div>
@@ -440,7 +422,6 @@ const AudioAnalysisPage: React.FC = () => {
           </div>
         )}
 
-        {/* 缓存结果提示 */}
         {cachedResult && !transcription && (
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-3xl shadow-lg p-6 mb-8 border border-purple-100">
             <div className="flex items-center justify-between">
@@ -453,7 +434,7 @@ const AudioAnalysisPage: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">上次分析结果</h3>
                   <p className="text-sm text-gray-500">
-                    完成于 {cachedResult.completed_at ? new Date(cachedResult.completed_at).toLocaleString('zh-CN') : ''} · 
+                    完成于 {cachedResult.completed_at ? new Date(cachedResult.completed_at).toLocaleString('zh-CN') : ''} ·
                     共 {cachedResult.sentence_count || 0} 句
                     {cachedResult.gpu_memory_peak_mb && ` · 显存峰值: ${cachedResult.gpu_memory_peak_mb.toFixed(0)} MB`}
                   </p>
@@ -521,9 +502,9 @@ const AudioAnalysisPage: React.FC = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900">音频波形预览</h3>
               </div>
-              
+
               <div className="bg-gradient-to-r from-gray-50 to-purple-50 rounded-2xl p-6 border border-gray-100">
-                <div 
+                <div
                   ref={waveformRef}
                   className="h-24 flex items-center justify-center relative overflow-hidden"
                 >
@@ -541,7 +522,7 @@ const AudioAnalysisPage: React.FC = () => {
                     <p className="text-gray-500">加载波形中...</p>
                   )}
                 </div>
-                
+
                 <div className="flex items-center justify-center mt-4 gap-4">
                   <button
                     onClick={handlePlayPause}
@@ -566,10 +547,10 @@ const AudioAnalysisPage: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
-              <audio 
-                ref={audioRef} 
-                src={audioUrl || undefined} 
+
+              <audio
+                ref={audioRef}
+                src={audioUrl || undefined}
                 onEnded={() => setIsPlaying(false)}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
@@ -617,7 +598,6 @@ const AudioAnalysisPage: React.FC = () => {
 
         {transcription && (
           <div className="space-y-8 animate-fadeIn">
-            {/* 来自缓存提示 */}
             {isFromCache && (
               <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -635,7 +615,6 @@ const AudioAnalysisPage: React.FC = () => {
               </div>
             )}
 
-            {/* 语音识别结果 */}
             <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -657,7 +636,6 @@ const AudioAnalysisPage: React.FC = () => {
               </p>
             </div>
 
-            {/* 整体情感统计 */}
             {overallSentiment && (
               <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100">
                 <div className="flex items-center gap-3 mb-6">
@@ -687,7 +665,7 @@ const AudioAnalysisPage: React.FC = () => {
                         <span className="text-lg font-bold text-gray-900">{(overallSentiment.confidence * 100).toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-3">
-                        <div 
+                        <div
                           className="bg-gradient-to-r from-purple-500 to-pink-400 h-3 rounded-full transition-all duration-500"
                           style={{ width: `${overallSentiment.confidence * 100}%` }}
                         ></div>
@@ -728,7 +706,6 @@ const AudioAnalysisPage: React.FC = () => {
               </div>
             )}
 
-            {/* 分句结果 */}
             {sentences.length > 0 && currentSentence && (
               <div className="bg-white rounded-3xl shadow-lg p-6 border border-gray-100">
                 <div className="flex items-center justify-between mb-6">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { API_ENDPOINTS } from '../config/api';
+import { apiClient } from '../utils/api';
 import AblationStudyTab from '../components/AblationStudyTab';
 import EvaluationTab from '../components/EvaluationTab';
 import ExternalApiTab from '../components/ExternalApiTab';
@@ -21,7 +22,7 @@ const TrainingPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const [activeTab, setActiveTab] = useState<'training' | 'dictionary' | 'external' | 'evaluation' | 'ablation' | 'quantization' | 'hybrid-inference'>('external');
   const [params, setParams] = useState<TrainingParams>({
     epochs: 3,
@@ -33,7 +34,7 @@ const TrainingPage: React.FC = () => {
     label_smoothing_factor: 0.1,
     lr_scheduler_type: 'cosine'
   });
-  
+
   const [uploadedData, setUploadedData] = useState<UploadedData>({ uploaded: false, count: 0 });
   const [trainingStatus, setTrainingStatus] = useState<TrainingStatus>({
     status: 'idle',
@@ -54,7 +55,7 @@ const TrainingPage: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const statusPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
+
   const [cachedTrainingResult, setCachedTrainingResult] = useState<CachedTrainingResult | null>(null);
 
   useEffect(() => {
@@ -82,60 +83,33 @@ const TrainingPage: React.FC = () => {
     }
   }, [trainingStatus.status]);
 
-
-
   const pollTrainingStatus = async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTrainingStatus(data);
-        if (data.status === 'training') {
-          fetchTrainingHistory();
-        }
+    const result = await apiClient.get<TrainingStatus>(`${API_ENDPOINTS.training}/status`, { showErrorMessage: false });
+    if (result.success && result.data) {
+      setTrainingStatus(result.data);
+      if (result.data.status === 'training') {
+        fetchTrainingHistory();
       }
-    } catch (error) {
-      console.error('获取训练状态失败:', error);
     }
   };
 
   const fetchTrainingHistory = async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/history`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        // 确保数据完整性
-        if (data && Array.isArray(data.epochs)) {
-          setTrainingHistory(data);
-        }
-      }
-    } catch (error) {
-      console.error('获取训练历史失败:', error);
+    const result = await apiClient.get<TrainingHistory>(`${API_ENDPOINTS.training}/history`, { showErrorMessage: false });
+    if (result.success && result.data && Array.isArray(result.data.epochs)) {
+      setTrainingHistory(result.data);
     }
   };
 
   const verifyToken = async (savedToken: string) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/verify`, {
-        headers: { 'Authorization': `Bearer ${savedToken}` }
-      });
-      if (response.ok) {
-        setToken(savedToken);
-        setIsLoggedIn(true);
-        loadData(savedToken);
-      } else {
-        localStorage.removeItem('training_token');
-        setLoginError('登录已过期，请重新输入密码');
-        alert('登录已过期，请重新输入密码');
-      }
-    } catch {
+    const result = await apiClient.get(`${API_ENDPOINTS.training}/verify`, { showErrorMessage: false });
+    if (result.success) {
+      setToken(savedToken);
+      setIsLoggedIn(true);
+      loadData();
+    } else {
       localStorage.removeItem('training_token');
-      setLoginError('登录验证失败，请重新输入密码');
-      alert('登录验证失败，请重新输入密码');
+      setLoginError('登录已过期，请重新输入密码');
+      alert('登录已过期，请重新输入密码');
     }
   };
 
@@ -144,32 +118,25 @@ const TrainingPage: React.FC = () => {
       setLoginError('请输入密码');
       return;
     }
-    
+
     setLoading(true);
     setLoginError('');
-    
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        setToken(data.token);
-        setIsLoggedIn(true);
-        localStorage.setItem('training_token', data.token);
-        loadData(data.token);
-      } else {
-        setLoginError(data.detail || '登录失败');
-      }
-    } catch {
-      setLoginError('网络错误，请重试');
-    } finally {
-      setLoading(false);
+
+    const result = await apiClient.post<{ success: boolean; token: string; detail?: string }>(
+      `${API_ENDPOINTS.training}/login`,
+      { password },
+      { requireAuth: false, showErrorMessage: false }
+    );
+
+    if (result.success && result.data?.success) {
+      setToken(result.data.token);
+      setIsLoggedIn(true);
+      localStorage.setItem('training_token', result.data.token);
+      loadData();
+    } else {
+      setLoginError(result.data?.detail || result.detail || '登录失败');
     }
+    setLoading(false);
   };
 
   const handleLogout = () => {
@@ -178,122 +145,65 @@ const TrainingPage: React.FC = () => {
     localStorage.removeItem('training_token');
   };
 
-  const loadData = async (authToken: string) => {
-    loadParams(authToken);
-    loadUploadedData(authToken);
-    loadTrainingStatus(authToken);
-    loadCachedTrainingResult(authToken);
+  const loadData = async () => {
+    loadParams();
+    loadUploadedData();
+    loadTrainingStatus();
+    loadCachedTrainingResult();
   };
 
-  const loadCachedTrainingResult = async (authToken: string) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/cached-result`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.cached_result) {
-          setCachedTrainingResult(data.cached_result);
-          if (data.cached_result.history && Array.isArray(data.cached_result.history.epochs)) {
-            setTrainingHistory(data.cached_result.history);
-          }
-        }
+  const loadCachedTrainingResult = async () => {
+    const result = await apiClient.get<{ success: boolean; cached_result: CachedTrainingResult }>(`${API_ENDPOINTS.training}/cached-result`, { showErrorMessage: false });
+    if (result.success && result.data?.success && result.data.cached_result) {
+      setCachedTrainingResult(result.data.cached_result);
+      if (result.data.cached_result.history && Array.isArray(result.data.cached_result.history.epochs)) {
+        setTrainingHistory(result.data.cached_result.history);
       }
-    } catch (error) {
-      console.error('加载训练缓存失败:', error);
     }
   };
 
-  const loadParams = async (authToken: string) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/params`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setParams(data);
-      }
-    } catch (error) {
-      console.error('加载参数失败:', error);
+  const loadParams = async () => {
+    const result = await apiClient.get<TrainingParams>(`${API_ENDPOINTS.training}/params`, { showErrorMessage: false });
+    if (result.success && result.data) {
+      setParams(result.data);
     }
   };
 
-  const loadUploadedData = async (authToken: string) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/uploaded-data`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUploadedData(data);
-      }
-    } catch (error) {
-      console.error('加载上传数据信息失败:', error);
+  const loadUploadedData = async () => {
+    const result = await apiClient.get<UploadedData>(`${API_ENDPOINTS.training}/uploaded-data`, { showErrorMessage: false });
+    if (result.success && result.data) {
+      setUploadedData(result.data);
     }
   };
 
-  const loadTrainingStatus = async (authToken: string) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/status`, {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setTrainingStatus(data);
-      }
-    } catch (error) {
-      console.error('加载训练状态失败:', error);
+  const loadTrainingStatus = async () => {
+    const result = await apiClient.get<TrainingStatus>(`${API_ENDPOINTS.training}/status`, { showErrorMessage: false });
+    if (result.success && result.data) {
+      setTrainingStatus(result.data);
     }
   };
 
   const updateParams = async () => {
     setLoading(true);
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/params`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(params)
-      });
-      
-      if (response.ok) {
-        alert('参数更新成功！');
-      }
-    } catch (error) {
-      console.error('更新参数失败:', error);
-    } finally {
-      setLoading(false);
+    const result = await apiClient.post(`${API_ENDPOINTS.training}/params`, params, { showErrorMessage: false });
+    if (result.success) {
+      alert('参数更新成功！');
+    } else {
+      alert(result.detail || '参数更新失败');
     }
+    setLoading(false);
   };
 
   const handleFileUpload = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    
     setLoading(true);
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/upload-data`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        alert(`上传成功！共 ${data.count} 条数据`);
-        loadUploadedData(token);
-      } else {
-        alert(data.detail || '上传失败');
-      }
-    } catch (error) {
-      console.error('上传失败:', error);
-      alert('上传失败，请重试');
-    } finally {
-      setLoading(false);
+    const result = await apiClient.uploadFile<{ count: number; detail?: string }>(`${API_ENDPOINTS.training}/upload-data`, file, { showErrorMessage: false });
+    if (result.success && result.data) {
+      alert(`上传成功！共 ${result.data.count} 条数据`);
+      loadUploadedData();
+    } else {
+      alert(result.data?.detail || result.detail || '上传失败');
     }
+    setLoading(false);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -309,7 +219,7 @@ const TrainingPage: React.FC = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       handleFileUpload(files[0]);
@@ -328,48 +238,28 @@ const TrainingPage: React.FC = () => {
       alert('请先上传训练数据');
       return;
     }
-    
+
     setLoading(true);
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/start`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        setTrainingStatus(prev => ({ ...prev, status: 'training', message: '训练已启动...' }));
-      } else if (response.status === 401) {
-        // Token 过期
-        localStorage.removeItem('training_token');
-        setIsLoggedIn(false);
-        setToken('');
-        setLoginError('登录已过期，请重新输入密码');
-        alert('登录已过期，请重新输入密码');
-      } else {
-        alert(data.detail || '启动训练失败');
-      }
-    } catch (error) {
-      console.error('启动训练失败:', error);
-      alert('启动训练失败，请重试');
-    } finally {
-      setLoading(false);
+    const result = await apiClient.post(`${API_ENDPOINTS.training}/start`, undefined, { showErrorMessage: false });
+    if (result.success) {
+      setTrainingStatus(prev => ({ ...prev, status: 'training', message: '训练已启动...' }));
+    } else if (result.detail === '登录已过期，请重新登录') {
+      setIsLoggedIn(false);
+      setToken('');
+      setLoginError('登录已过期，请重新输入密码');
+      alert('登录已过期，请重新输入密码');
+    } else {
+      alert(result.detail || '启动训练失败');
     }
+    setLoading(false);
   };
 
   const cancelTraining = async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/cancel`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        alert('训练已取消');
-      }
-    } catch (error) {
-      console.error('取消训练失败:', error);
+    const result = await apiClient.post(`${API_ENDPOINTS.training}/cancel`, undefined, { showErrorMessage: false });
+    if (result.success) {
+      alert('训练已取消');
+    } else {
+      alert(result.detail || '取消训练失败');
     }
   };
 
@@ -378,7 +268,7 @@ const TrainingPage: React.FC = () => {
       <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-purple-50 flex items-center justify-center py-12 px-4">
         <div className="absolute top-20 left-10 w-72 h-72 bg-purple-400/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-pink-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        
+
         <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md relative z-10 border border-gray-100">
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-400 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
@@ -389,7 +279,7 @@ const TrainingPage: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">管理平台</h1>
             <p className="text-gray-500">管理员登录</p>
           </div>
-          
+
           <div className="space-y-6">
             <div>
               <label className="block text-gray-700 font-semibold mb-2">管理员密码</label>
@@ -402,7 +292,7 @@ const TrainingPage: React.FC = () => {
                 className="w-full border-2 border-gray-200 rounded-xl p-4 focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-300 text-gray-700"
               />
             </div>
-            
+
             {loginError && (
               <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -411,7 +301,7 @@ const TrainingPage: React.FC = () => {
                 {loginError}
               </div>
             )}
-            
+
             <button
               onClick={handleLogin}
               disabled={loading}
@@ -456,7 +346,7 @@ const TrainingPage: React.FC = () => {
               <p className="text-gray-500">模型与词典管理</p>
             </div>
           </div>
-          
+
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all duration-300"
@@ -582,7 +472,7 @@ const TrainingPage: React.FC = () => {
               <div className="space-y-6">
                 <h3 className="text-xl font-bold text-gray-900">本地模型训练</h3>
                 <p className="text-gray-500 text-sm">训练本地深度学习模型（chinese-roberta-wwm-ext），训练完成后自动生效。</p>
-                
+
                 {trainingStatus.status === 'training' && (
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-100">
                     <div className="flex items-center gap-3">
@@ -654,10 +544,7 @@ const TrainingPage: React.FC = () => {
                       <button
                         onClick={async () => {
                           try {
-                            await fetch(`${API_ENDPOINTS.training}/clear-cache`, {
-                              method: 'POST',
-                              headers: { 'Authorization': `Bearer ${token}` }
-                            });
+                            await apiClient.post(`${API_ENDPOINTS.training}/clear-cache`, undefined, { showErrorMessage: false });
                             setCachedTrainingResult(null);
                           } catch (error) {
                             console.error('清除缓存失败:', error);
@@ -668,7 +555,7 @@ const TrainingPage: React.FC = () => {
                         清除缓存
                       </button>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="bg-white rounded-xl p-3 text-center">
                         <div className="text-xs text-gray-500 mb-1">状态</div>
@@ -768,28 +655,32 @@ const TrainingPage: React.FC = () => {
                       <button
                         onClick={async () => {
                           try {
-                            const response = await fetch(`${API_ENDPOINTS.training}/export-training-data`, {
-                              headers: { 'Authorization': `Bearer ${token}` }
-                            });
-                            const data = await response.json();
-                            
-                            if (response.ok && data.success) {
-                              const csvBlob = new Blob(['\ufeff' + data.csv_content], { type: 'text/csv;charset=utf-8' });
+                            const result = await apiClient.get<{
+                              success: boolean;
+                              csv_content: string;
+                              csv_filename: string;
+                              png_base64: string;
+                              png_filename: string;
+                              detail?: string;
+                            }>(`${API_ENDPOINTS.training}/export-training-data`, { showErrorMessage: false });
+
+                            if (result.success && result.data?.success) {
+                              const csvBlob = new Blob(['\ufeff' + result.data.csv_content], { type: 'text/csv;charset=utf-8' });
                               const csvUrl = URL.createObjectURL(csvBlob);
                               const csvLink = document.createElement('a');
                               csvLink.href = csvUrl;
-                              csvLink.download = data.csv_filename;
+                              csvLink.download = result.data.csv_filename;
                               csvLink.click();
                               URL.revokeObjectURL(csvUrl);
-                              
+
                               const pngLink = document.createElement('a');
-                              pngLink.href = `data:image/png;base64,${data.png_base64}`;
-                              pngLink.download = data.png_filename;
+                              pngLink.href = `data:image/png;base64,${result.data.png_base64}`;
+                              pngLink.download = result.data.png_filename;
                               pngLink.click();
-                              
+
                               alert('训练数据导出成功！CSV文件和PNG图表已下载。');
                             } else {
-                              alert(data.detail || '导出失败');
+                              alert(result.data?.detail || result.detail || '导出失败');
                             }
                           } catch (error) {
                             console.error('导出训练数据失败:', error);

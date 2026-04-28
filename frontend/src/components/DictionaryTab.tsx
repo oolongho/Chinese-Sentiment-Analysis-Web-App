@@ -3,7 +3,7 @@ import { useDictionary } from '../hooks/useDictionary';
 import { DICTIONARY_CONFIG, type DictionaryType } from '../types/training';
 import { API_ENDPOINTS } from '../config/api';
 import { dictionaryStatsCache } from '../utils/cache';
-import { handleApiResponse } from '../utils/api';
+import { apiClient } from '../utils/api';
 
 interface DictionaryStats {
   positive_count: number;
@@ -53,22 +53,18 @@ const DictionaryTab: React.FC<DictionaryTabProps> = ({ token }) => {
   }, [activeDictionary, loadDictionary]);
 
   useEffect(() => {
-    // 加载词典统计
     const fetchDictionaryStats = async () => {
-      try {
-        const response = await fetch(`${API_ENDPOINTS.training}/dictionary/stats`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await handleApiResponse<DictionaryStats>(response);
-        setDictionaryStats(data);
-        // 使用带过期时间的缓存
-        dictionaryStatsCache.setCache(data);
-      } catch (error) {
-        console.error('加载词典统计失败:', error);
+      const result = await apiClient.get<DictionaryStats>(
+        `${API_ENDPOINTS.training}/dictionary/stats`,
+        { showErrorMessage: false }
+      );
+      if (result.success && result.data) {
+        setDictionaryStats(result.data);
+        dictionaryStatsCache.setCache(result.data);
       }
     };
     fetchDictionaryStats();
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     // 根据词典类型设置默认分数

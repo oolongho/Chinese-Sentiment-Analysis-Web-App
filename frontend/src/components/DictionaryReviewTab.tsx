@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { apiClient } from '../utils/api';
 
 interface DictionaryReviewTabProps {
   token: string;
@@ -43,7 +44,6 @@ interface CandidatesResponse {
   };
 }
 
-// 数据集信息
 interface DatasetInfo {
   path: string;
   samples: number;
@@ -62,7 +62,6 @@ interface EnhancedStatus {
 const PAGE_SIZE = 20;
 
 const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
-  // 梯度提取状态
   const [extractionConfig, setExtractionConfig] = useState<ExtractionConfig>({
     model_type: 'FP32',
     min_word_freq: 5,
@@ -76,12 +75,10 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
   const [extractionStatus, setExtractionStatus] = useState('');
   const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
 
-  // 候选词审核状态
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidates, setSelectedCandidates] = useState<Set<string>>(new Set());
   const [selectAllPage, setSelectAllPage] = useState(false);
 
-  // 筛选和分页状态
   const [filterStatus, setFilterStatus] = useState('pending_review');
   const [filterPolarity, setFilterPolarity] = useState('all');
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -89,25 +86,17 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
   const [totalItems, setTotalItems] = useState(0);
   const [statistics, setStatistics] = useState<CandidatesResponse['statistics'] | null>(null);
 
-  // 数据集信息
   const [datasetInfo, setDatasetInfo] = useState<DatasetInfo | null>(null);
 
-  // 数据集上传状态
   const [isDraggingDataset, setIsDraggingDataset] = useState(false);
   const datasetFileInputRef = useRef<HTMLInputElement>(null);
 
-  // 增强词典状态
   const [enhancedEnabled, setEnhancedEnabled] = useState(false);
   const [enhancedStatus, setEnhancedStatus] = useState<EnhancedStatus | null>(null);
   const [toggleLoading, setToggleLoading] = useState(false);
 
-  // 获取认证头
-  const getAuthHeaders = () => ({
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  });
+  const [isToggling, setIsToggling] = useState(false);
 
-  // 数据集上传处理
   const handleDatasetSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -124,138 +113,96 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
   };
 
   const uploadDataset = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const response = await fetch(`${API_ENDPOINTS.dictionary}/upload-dataset`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
+    const result = await apiClient.uploadFile(`${API_ENDPOINTS.dictionary}/upload-dataset`, file);
+    if (result.success && result.data) {
+      setDatasetInfo({
+        path: result.data.filepath,
+        samples: result.data.sample_count,
+        filename: file.name,
+        sample_count: result.data.sample_count,
+        label_distribution: result.data.label_distribution,
       });
-      if (response.ok) {
-        const data = await response.json();
-        setDatasetInfo({
-          path: data.filepath,
-          samples: data.sample_count,
-          filename: file.name,
-          sample_count: data.sample_count,
-          label_distribution: data.label_distribution,
-        });
-      } else {
-        const err = await response.json();
-        alert(`上传失败: ${err.detail || '未知错误'}`);
-      }
-    } catch {
-      alert('上传失败，请重试');
     }
   };
 
-  // 增强词典切换 — 乐观更新 + 强制使用前端状态
-  const [isToggling, setIsToggling] = useState(false);
   const handleToggleEnhanced = async () => {
     if (isToggling || toggleLoading) return;
-    
+
     const newState = !enhancedEnabled;
-    
+
     setEnhancedEnabled(newState);
     setIsToggling(true);
     setToggleLoading(true);
-    
-    try {
-      const response = await fetch(`${API_ENDPOINTS.dictionary}/toggle-enhanced`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: newState }),
+
+    const result = await apiClient.post(`${API_ENDPOINTS.dictionary}/toggle-enhanced`, { enabled: newState }, { showErrorMessage: false });
+
+    if (result.success && result.data) {
+      setEnhancedStatus({
+        ...result.data,
+        enhanced_enabled: newState
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setEnhancedStatus({
-          ...data,
-          enhanced_enabled: newState
-        });
-      } else {
-        setEnhancedEnabled(!newState);
-      }
-    } catch {
+    } else {
       setEnhancedEnabled(!newState);
-    } finally {
-      setToggleLoading(false);
-      setTimeout(() => setIsToggling(false), 300);
     }
+
+    setToggleLoading(false);
+    setTimeout(() => setIsToggling(false), 300);
   };
 
-  // 加载候选词列表
   const loadCandidates = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({
-        status: filterStatus,
-        limit: String(PAGE_SIZE),
-        offset: String((currentPage - 1) * PAGE_SIZE),
-        sort_by: 'extraction_count'
-      });
-      
-      if (filterPolarity !== 'all') {
-        params.append('polarity', filterPolarity);
-      }
+    const params = new URLSearchParams({
+      status: filterStatus,
+      limit: String(PAGE_SIZE),
+      offset: String((currentPage - 1) * PAGE_SIZE),
+      sort_by: 'extraction_count'
+    });
 
-      const response = await fetch(`${API_ENDPOINTS.dictionary}/candidates?${params}`, {
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
-        const data: CandidatesResponse = await response.json();
-        setCandidates(data.items);
-        setTotalItems(data.total);
-        setStatistics(data.statistics);
-      }
-    } catch (error) {
-      console.error('加载候选词失败:', error);
+    if (filterPolarity !== 'all') {
+      params.append('polarity', filterPolarity);
     }
-  }, [filterStatus, filterPolarity, currentPage, token]);
 
-  // 初始化加载 - 只在组件挂载时执行一次
+    const result = await apiClient.get<CandidatesResponse>(`${API_ENDPOINTS.dictionary}/candidates?${params}`, { showErrorMessage: false });
+    if (result.success && result.data) {
+      setCandidates(result.data.items);
+      setTotalItems(result.data.total);
+      setStatistics(result.data.statistics);
+    }
+  }, [filterStatus, filterPolarity, currentPage]);
+
   useEffect(() => {
     let mounted = true;
 
     loadCandidates();
 
-    fetch(`${API_ENDPOINTS.dictionary}/enhanced-status`, { headers: getAuthHeaders() })
-      .then(r => r.json())
-      .then(data => {
-        if (mounted) {
-          setEnhancedEnabled(data.enhanced_enabled);
-          setEnhancedStatus(data);
+    apiClient.get<EnhancedStatus>(`${API_ENDPOINTS.dictionary}/enhanced-status`, { showErrorMessage: false })
+      .then(result => {
+        if (mounted && result.success && result.data) {
+          setEnhancedEnabled(result.data.enhanced_enabled);
+          setEnhancedStatus(result.data);
         }
-      })
-      .catch(() => {});
+      });
 
-    fetch(`${API_ENDPOINTS.dictionary}/dataset-info`, { headers: getAuthHeaders() })
-      .then(r => r.json())
-      .then(data => {
-        if (mounted && data.filepath) {
-          setDatasetInfo(data);
+    apiClient.get<DatasetInfo>(`${API_ENDPOINTS.dictionary}/dataset-info`, { showErrorMessage: false })
+      .then(result => {
+        if (mounted && result.success && result.data && result.data.filepath) {
+          setDatasetInfo(result.data);
         }
-      })
-      .catch(() => {});
+      });
 
     return () => { mounted = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 当筛选条件变化时重新加载候选词（不影响增强词典状态）
   useEffect(() => {
     loadCandidates();
   }, [loadCandidates]);
 
-  // 当筛选条件变化时重置页码
   useEffect(() => {
     setCurrentPage(1);
     setSelectedCandidates(new Set());
     setSelectAllPage(false);
   }, [filterStatus, filterPolarity, searchKeyword]);
 
-  // 开始梯度提取（SSE 流式进度）
   const startGradientExtraction = async () => {
     if (isExtracting) return;
     setIsExtracting(true);
@@ -264,13 +211,15 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
     setExtractionResult(null);
 
     try {
+      const authToken = localStorage.getItem('training_token');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
       const response = await fetch(`${API_ENDPOINTS.dictionary}/gradient-extract`, {
         method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-        },
+        headers,
         body: JSON.stringify(extractionConfig)
       });
 
@@ -315,7 +264,6 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
               setExtractionStatus(`提取失败: ${event.detail || '未知错误'}`);
             }
           } catch {
-            // 忽略解析失败的行
           }
         }
       }
@@ -331,61 +279,30 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
     }
   };
 
-  // 批量通过
   const handleApprove = async () => {
     if (selectedCandidates.size === 0) return;
 
-    try {
-      const response = await fetch(`${API_ENDPOINTS.dictionary}/approve`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ words: Array.from(selectedCandidates) })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message || `已通过 ${data.approved_count} 个词`);
-        setSelectedCandidates(new Set());
-        setSelectAllPage(false);
-        loadCandidates();
-      } else {
-        const error = await response.json();
-        alert(`操作失败: ${error.detail || '未知错误'}`);
-      }
-    } catch (error) {
-      console.error('批量通过失败:', error);
-      alert('操作失败，请重试');
+    const result = await apiClient.post(`${API_ENDPOINTS.dictionary}/approve`, { words: Array.from(selectedCandidates) });
+    if (result.success && result.data) {
+      alert(result.data.message || `已通过 ${result.data.approved_count} 个词`);
+      setSelectedCandidates(new Set());
+      setSelectAllPage(false);
+      loadCandidates();
     }
   };
 
-  // 批量拒绝
   const handleReject = async () => {
     if (selectedCandidates.size === 0) return;
 
-    try {
-      const response = await fetch(`${API_ENDPOINTS.dictionary}/reject`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ words: Array.from(selectedCandidates) })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(data.message || `已拒绝 ${data.rejected_count} 个词`);
-        setSelectedCandidates(new Set());
-        setSelectAllPage(false);
-        loadCandidates();
-      } else {
-        const error = await response.json();
-        alert(`操作失败: ${error.detail || '未知错误'}`);
-      }
-    } catch (error) {
-      console.error('批量拒绝失败:', error);
-      alert('操作失败，请重试');
+    const result = await apiClient.post(`${API_ENDPOINTS.dictionary}/reject`, { words: Array.from(selectedCandidates) });
+    if (result.success && result.data) {
+      alert(result.data.message || `已拒绝 ${result.data.rejected_count} 个词`);
+      setSelectedCandidates(new Set());
+      setSelectAllPage(false);
+      loadCandidates();
     }
   };
 
-  // 切换单个选择
   const toggleCandidateSelection = (word: string) => {
     const newSelected = new Set(selectedCandidates);
     if (newSelected.has(word)) {
@@ -396,7 +313,6 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
     setSelectedCandidates(newSelected);
   };
 
-  // 全选本页
   const toggleSelectAllPage = () => {
     if (selectAllPage) {
       setSelectedCandidates(new Set());
@@ -408,7 +324,6 @@ const DictionaryReviewTab: React.FC<DictionaryReviewTabProps> = ({ token }) => {
     }
   };
 
-  // 计算总页数
   const totalPages = Math.ceil(totalItems / 20);
 
   return (

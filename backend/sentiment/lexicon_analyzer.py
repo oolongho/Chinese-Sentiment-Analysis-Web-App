@@ -491,7 +491,7 @@ class LexiconAnalyzer:
         else:
             threshold = base_threshold
         
-        # 对于绝对值较小的分数，更倾向于中性
+        # 对于绝对值较小的分数，倾向于中性
         if abs(score) <= threshold * 0.5:
             return '中性'
         elif score > threshold:

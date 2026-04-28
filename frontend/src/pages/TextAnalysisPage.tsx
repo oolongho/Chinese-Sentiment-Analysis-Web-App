@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { apiClient } from '../utils/api';
 
 interface AnalysisResult {
   text: string;
@@ -67,16 +68,9 @@ const TextAnalysisPage: React.FC = () => {
   }, [useHybridMode]);
 
   const loadCachedResult = async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.text}/cached-result`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.cached_result) {
-          setCachedResult(data.cached_result);
-        }
-      }
-    } catch (error) {
-      console.error('加载缓存失败:', error);
+    const result = await apiClient.get(`${API_ENDPOINTS.text}/cached-result`, { showErrorMessage: false });
+    if (result.success && result.data?.cached_result) {
+      setCachedResult(result.data.cached_result);
     }
   };
 
@@ -121,23 +115,14 @@ const TextAnalysisPage: React.FC = () => {
   };
 
   const clearCache = async () => {
-    try {
-      await fetch(`${API_ENDPOINTS.text}/clear-cache`, { method: 'POST' });
-      setCachedResult(null);
-    } catch (error) {
-      console.error('清除缓存失败:', error);
-    }
+    await apiClient.post(`${API_ENDPOINTS.text}/clear-cache`, undefined, { showErrorMessage: false });
+    setCachedResult(null);
   };
 
   const checkExternalApi = async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.training}/external-api/status`);
-      if (response.ok) {
-        const data = await response.json();
-        setTextApiEnabled(data.text_enabled || false);
-      }
-    } catch {
-      // 忽略错误
+    const result = await apiClient.get(`${API_ENDPOINTS.training}/external-api/status`, { showErrorMessage: false });
+    if (result.success && result.data) {
+      setTextApiEnabled(result.data.text_enabled || false);
     }
   };
 
@@ -153,52 +138,48 @@ const TextAnalysisPage: React.FC = () => {
     setCurrentPage(0);
     setIsFromCache(false);
     
-    try {
-      let localData;
-      let externalResults: any[] = [];
-      
-      if (textApiEnabled) {
-        const externalResponse = await fetch(`${API_ENDPOINTS.text}/analyze/external/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ texts: textLines })
-        });
-        if (externalResponse.ok) {
-          externalResults = await externalResponse.json().then(d => d.results);
+    let localData;
+    let externalResults: any[] = [];
+    let analysisError: string | null = null;
+    
+    if (textApiEnabled) {
+      const externalResult = await apiClient.post(`${API_ENDPOINTS.text}/analyze/external/batch`, { texts: textLines }, { showErrorMessage: false });
+      if (externalResult.success && externalResult.data) {
+        externalResults = externalResult.data.results;
+      }
+    }
+    
+    if (useHybridMode) {
+      const hybridResults: any[] = [];
+      for (const text of textLines) {
+        const result = await apiClient.post(`${API_ENDPOINTS.text}/analyze/hybrid`, { text }, { showErrorMessage: false });
+        if (!result.success) {
+          analysisError = `混合分析请求失败: ${result.detail || '未知错误'}`;
+          break;
         }
+        hybridResults.push(result.data);
       }
       
-      if (useHybridMode) {
-        const hybridResults: any[] = [];
-        for (const text of textLines) {
-          const response = await fetch(`${API_ENDPOINTS.text}/analyze/hybrid`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text })
-          });
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-            throw new Error(`混合分析请求失败 (${response.status}): ${errorData.detail || '未知错误'}`);
-          }
-          hybridResults.push(await response.json());
-        }
-        
+      if (!analysisError) {
         localData = {
           results: hybridResults,
           hybrid_stats: hybridResults[0]?.hybrid_stats || null
         };
-      } else {
-        const response = await fetch(`${API_ENDPOINTS.text}/analyze/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ texts: textLines })
-        });
-        
-        if (!response.ok) {
-          throw new Error('分析请求失败');
-        }
-        localData = await response.json();
       }
+    } else {
+      const result = await apiClient.post(`${API_ENDPOINTS.text}/analyze/batch`, { texts: textLines }, { showErrorMessage: false });
+      if (!result.success) {
+        analysisError = result.detail || '分析请求失败';
+      } else {
+        localData = result.data;
+      }
+    }
+    
+    if (analysisError) {
+      setError(analysisError);
+      setLoading(false);
+      return;
+    }
       
       const results: AnalysisResult[] = localData.results.map((item: any, index: number) => {
         const externalResult = externalResults[index] || null;
@@ -298,12 +279,7 @@ const TextAnalysisPage: React.FC = () => {
       });
       
       setResultsList(results);
-    } catch (err: any) {
-      console.error('分析失败:', err);
-      setError('分析失败，请检查后端服务是否正常运行');
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
   const getSentimentConfig = (sentiment: string) => {
@@ -361,6 +337,28 @@ const TextAnalysisPage: React.FC = () => {
     }
   };
 
+  const downloadBlob = async (url: string, body: any, filename: string) => {
+    const token = localStorage.getItem('training_token');
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+    if (response.ok) {
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+    }
+  };
+
   const exportResults = async () => {
     if (resultsList.length === 0) return;
 
@@ -378,23 +376,7 @@ const TextAnalysisPage: React.FC = () => {
     }));
 
     try {
-      const response = await fetch(`${API_ENDPOINTS.text}/export-results`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ results: exportData, format: 'xlsx' })
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'analysis_results.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
+      await downloadBlob(`${API_ENDPOINTS.text}/export-results`, { results: exportData, format: 'xlsx' }, 'analysis_results.xlsx');
     } catch (error) {
       console.error('导出失败:', error);
     }
@@ -415,23 +397,7 @@ const TextAnalysisPage: React.FC = () => {
     }));
 
     try {
-      const response = await fetch(`${API_ENDPOINTS.text}/export-performance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ results: exportData, format: 'xlsx' })
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'performance_data.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
+      await downloadBlob(`${API_ENDPOINTS.text}/export-performance`, { results: exportData, format: 'xlsx' }, 'performance_data.xlsx');
     } catch (error) {
       console.error('导出失败:', error);
     }
@@ -608,7 +574,6 @@ const TextAnalysisPage: React.FC = () => {
               </button>
             </div>
 
-            {/* 混合模式开关 */}
             <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-pink-50 px-5 py-3 rounded-xl border border-purple-100">
               <div className="flex flex-col">
                 <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -709,7 +674,6 @@ const TextAnalysisPage: React.FC = () => {
                   <span className="px-3 py-1 bg-blue-50 rounded-full text-blue-600 text-sm font-medium">
                     共 {resultsList.length} 条结果
                   </span>
-                  {/* 方法标签 Badge */}
                   {currentResult.modelType === 'hybrid' ? (
                     <span className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-400 text-white text-sm font-semibold rounded-full flex items-center gap-1 shadow-md">
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -728,7 +692,6 @@ const TextAnalysisPage: React.FC = () => {
                 </div>
               </div>
               
-              {/* 混合模式统计信息 */}
               {currentResult.modelType === 'hybrid' && currentResult.hybridStats && (
                 <div className="mb-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-100">
                   <div className="flex items-center justify-between">

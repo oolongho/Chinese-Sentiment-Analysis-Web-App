@@ -1,14 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_ENDPOINTS } from '../config/api';
-
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('training_token');
-  if (!token) return undefined;
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
-};
+import { apiClient } from '../utils/api';
 
 interface EvaluationResult {
   accuracy: number;
@@ -86,7 +78,6 @@ const EvaluationTab: React.FC = () => {
   }>({ model: [], lexicon: [], external: [], hybrid: [] });
   const [selectedErrorAnalyzer, setSelectedErrorAnalyzer] = useState<'model' | 'lexicon' | 'hybrid'>('model');
   
-  // 混合评估相关状态
   const [showHybridModal, setShowHybridModal] = useState(false);
   const [hybridThresholds, setHybridThresholds] = useState({
     lexicon_threshold: 0.70,
@@ -105,34 +96,28 @@ const EvaluationTab: React.FC = () => {
     );
   };
 
-  // 加载缓存的评估结果
-  const loadCachedEvaluationResult = async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.evaluation}/cached-result`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('加载评估缓存:', data);
-        if (data.success && data.cached_result) {
-          setCachedEvaluationResult(data.cached_result);
-          if (data.cached_result.results) {
-            setEvaluationResults(data.cached_result.results);
-          }
-          if (data.cached_result.error_samples) {
-            setErrorSamples({
-              model: data.cached_result.error_samples.model || [],
-              lexicon: data.cached_result.error_samples.lexicon || [],
-              external: data.cached_result.error_samples.external || [],
-              hybrid: data.cached_result.error_samples.hybrid || []
-            });
-          }
-        }
+  const loadCachedEvaluationResult = useCallback(async () => {
+    const result = await apiClient.get<{ success: boolean; cached_result?: CachedEvaluationResult }>(
+      `${API_ENDPOINTS.evaluation}/cached-result`,
+      { showErrorMessage: false }
+    );
+    if (result.success && result.data?.cached_result) {
+      const cached = result.data.cached_result;
+      setCachedEvaluationResult(cached);
+      if (cached.results) {
+        setEvaluationResults(cached.results);
       }
-    } catch (error) {
-      console.error('加载评估缓存失败:', error);
+      if (cached.error_samples) {
+        setErrorSamples({
+          model: cached.error_samples.model || [],
+          lexicon: cached.error_samples.lexicon || [],
+          external: cached.error_samples.external || [],
+          hybrid: cached.error_samples.hybrid || []
+        });
+      }
     }
-  };
+  }, []);
 
-  // 页面加载时获取缓存
   useEffect(() => {
     loadCachedEvaluationResult();
     return () => {
@@ -140,236 +125,130 @@ const EvaluationTab: React.FC = () => {
         clearInterval(evaluationPollingRef.current);
       }
     };
-  }, []);
+  }, [loadCachedEvaluationResult]);
 
-  // 处理文件上传
+  const pollEvaluationStatus = useCallback(() => {
+    evaluationPollingRef.current = setInterval(async () => {
+      const statusResult = await apiClient.get<EvaluationStatus>(
+        `${API_ENDPOINTS.evaluation}/status`,
+        { showErrorMessage: false }
+      );
+      if (statusResult.success && statusResult.data) {
+        const statusData = statusResult.data;
+        setEvaluationStatus({
+          running: statusData.running,
+          progress: Number(statusData.progress) || 0,
+          total: Number(statusData.total) || 0,
+          current_analyzer: statusData.current_analyzer || '',
+          gpu_memory: statusData.gpu_memory
+        });
+        
+        if (!statusData.running) {
+          if (evaluationPollingRef.current) {
+            clearInterval(evaluationPollingRef.current);
+          }
+          const resultsResult = await apiClient.get<{ success: boolean; model?: any; lexicon?: any; external?: any; hybrid?: any }>(
+            `${API_ENDPOINTS.evaluation}/results`,
+            { showErrorMessage: false }
+          );
+          if (resultsResult.success && resultsResult.data) {
+            const rd = resultsResult.data;
+            if (rd.success !== false) {
+              setEvaluationResults({
+                model: rd.model,
+                lexicon: rd.lexicon,
+                external: rd.external,
+                hybrid: rd.hybrid
+              });
+              loadCachedEvaluationResult();
+            }
+          }
+        }
+      }
+    }, 1000);
+  }, [loadCachedEvaluationResult]);
+
   const handleEvaluationUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
+    const result = await apiClient.uploadFile<{
+      total?: number;
+      label_distribution?: Record<string, number>;
+    }>(`${API_ENDPOINTS.evaluation}/upload`, file);
 
-    try {
-      // 文件上传时不能设置 Content-Type，让浏览器自动设置 multipart/form-data
-      const token = localStorage.getItem('training_token');
-      const headers: HeadersInit = token ? {
-        'Authorization': `Bearer ${token}`
-      } : {};
-      
-      const response = await fetch(`${API_ENDPOINTS.evaluation}/upload`, {
-        method: 'POST',
-        headers: headers,
-        body: formData
+    if (result.success && result.data) {
+      const labelDist = result.data.label_distribution || {};
+      const safeLabelDistribution: Record<string, number> = {
+        '正面': Number(labelDist['正面']) || 0,
+        '负面': Number(labelDist['负面']) || 0,
+        '中性': Number(labelDist['中性']) || 0
+      };
+      const safeTotal = Number(result.data.total) || 0;
+      setEvaluationDataInfo({
+        total: safeTotal,
+        label_distribution: safeLabelDistribution
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('上传成功，返回数据:', data);
-        // 确保 label_distribution 的值是标准数字类型
-        const labelDist = data.label_distribution || {};
-        const safeLabelDistribution: Record<string, number> = {
-          '正面': Number(labelDist['正面']) || 0,
-          '负面': Number(labelDist['负面']) || 0,
-          '中性': Number(labelDist['中性']) || 0
-        };
-        const safeTotal = Number(data.total) || 0;
-        console.log('处理后的数据:', { total: safeTotal, label_distribution: safeLabelDistribution });
-        setEvaluationDataInfo({
-          total: safeTotal,
-          label_distribution: safeLabelDistribution
-        });
-        alert(`成功上传 ${safeTotal} 条测试数据`);
-      } else {
-        const error = await response.json();
-        console.error('上传错误:', error);
-        // 处理 422 验证错误（detail 是数组）
-        let errorMessage = '上传失败';
-        if (error.detail) {
-          if (Array.isArray(error.detail)) {
-            // 422 验证错误，detail 是对象数组
-            errorMessage = error.detail.map((err: any) => 
-              `${err.loc?.join('.')}: ${err.msg}`
-            ).join('; ');
-          } else if (typeof error.detail === 'string') {
-            errorMessage = error.detail;
-          } else if (typeof error.detail === 'object') {
-            // 如果是对象，转换为字符串
-            errorMessage = JSON.stringify(error.detail);
-          }
-        }
-        alert(errorMessage);
-      }
-    } catch (error) {
-      console.error('上传失败:', error);
-      alert('上传失败，请重试');
+      alert(`成功上传 ${safeTotal} 条测试数据`);
     }
   };
 
-  // 开始评估
   const startEvaluation = async (channels: string[] = ['model', 'lexicon', 'hybrid']) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.evaluation}/run?channels=${channels.join(',')}`, {
-        method: 'POST',
-        headers: getAuthHeaders()
+    const result = await apiClient.post(
+      `${API_ENDPOINTS.evaluation}/run?channels=${channels.join(',')}`,
+      undefined,
+      { showErrorMessage: false }
+    );
+    
+    if (result.success) {
+      setEvaluationStatus({
+        running: true,
+        progress: 0,
+        total: 0,
+        current_analyzer: ''
       });
-      
-      if (response.ok) {
-        setEvaluationStatus({
-          running: true,
-          progress: 0,
-          total: 0,
-          current_analyzer: ''
-        });
-        setEvaluationResults(null);
-        setEvaluationChartImage('');
-        
-        // 开始轮询状态
-        evaluationPollingRef.current = setInterval(async () => {
-          try {
-            const statusResponse = await fetch(`${API_ENDPOINTS.evaluation}/status`);
-            if (statusResponse.ok) {
-              const statusData = await statusResponse.json();
-              console.log('评估状态:', statusData);
-              setEvaluationStatus({
-                running: statusData.running,
-                progress: Number(statusData.progress) || 0,
-                total: Number(statusData.total) || 0,
-                current_analyzer: statusData.current_analyzer || '',
-                gpu_memory: statusData.gpu_memory
-              });
-              
-              if (!statusData.running) {
-                if (evaluationPollingRef.current) {
-                  clearInterval(evaluationPollingRef.current);
-                }
-                // 评估完成，获取结果
-                const resultsResponse = await fetch(`${API_ENDPOINTS.evaluation}/results`);
-                if (resultsResponse.ok) {
-                  const resultsData = await resultsResponse.json();
-                  if (resultsData.success) {
-                    setEvaluationResults({
-                      model: resultsData.model,
-                      lexicon: resultsData.lexicon,
-                      external: resultsData.external,
-                      hybrid: resultsData.hybrid
-                    });
-                    // 重新加载缓存
-                    loadCachedEvaluationResult();
-                  }
-                }
-              }
-            }
-          } catch (error) {
-            console.error('获取评估状态失败:', error);
-          }
-        }, 1000);
-      } else {
-        const error = await response.json();
-        alert(error.detail || '启动评估失败');
-      }
-    } catch (error) {
-      console.error('启动评估失败:', error);
-      alert('启动评估失败，请重试');
+      setEvaluationResults(null);
+      setEvaluationChartImage('');
+      pollEvaluationStatus();
+    } else {
+      alert(result.detail || '启动评估失败');
     }
   };
 
-  // 开始混合评估
   const startHybridEvaluation = async () => {
-    try {
-      // 先配置混合分析器参数
-      const configResponse = await fetch(`${API_ENDPOINTS.evaluation}/hybrid/config`, {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(hybridThresholds)
+    const configResult = await apiClient.post(
+      `${API_ENDPOINTS.evaluation}/hybrid/config`,
+      hybridThresholds,
+      { showErrorMessage: false }
+    );
+    
+    if (!configResult.success) {
+      alert('配置混合分析器失败');
+      return;
+    }
+    
+    const result = await apiClient.post<{ success?: boolean; total?: number; message?: string }>(
+      `${API_ENDPOINTS.evaluation}/run`,
+      undefined,
+      { showErrorMessage: false }
+    );
+    
+    if (result.success && result.data?.success !== false) {
+      setEvaluationStatus({
+        running: true,
+        progress: 0,
+        total: Number(result.data?.total) || 0,
+        current_analyzer: 'hybrid'
       });
-      
-      if (!configResponse.ok) {
-        throw new Error('配置混合分析器失败');
-      }
-      
-      // 然后启动评估（使用普通的 run 端点，会自动包含混合推理）
-      const response = await fetch(`${API_ENDPOINTS.evaluation}/run`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setEvaluationStatus({
-            running: true,
-            progress: 0,
-            total: Number(data.total) || 0,
-            current_analyzer: 'hybrid'
-          });
-          setEvaluationResults(null);
-          setEvaluationChartImage('');
-          setShowHybridModal(false);
-          
-          // 开始轮询状态
-          evaluationPollingRef.current = setInterval(async () => {
-            try {
-              const statusResponse = await fetch(`${API_ENDPOINTS.evaluation}/status`);
-              if (statusResponse.ok) {
-                const statusData = await statusResponse.json();
-                console.log('混合评估状态:', statusData);
-                setEvaluationStatus({
-                  running: statusData.running,
-                  progress: Number(statusData.progress) || 0,
-                  total: Number(statusData.total) || 0,
-                  current_analyzer: statusData.current_analyzer || '',
-                  gpu_memory: statusData.gpu_memory
-                });
-                
-                if (!statusData.running) {
-                  if (evaluationPollingRef.current) {
-                    clearInterval(evaluationPollingRef.current);
-                  }
-                  // 评估完成，获取结果
-                  const resultsResponse = await fetch(`${API_ENDPOINTS.evaluation}/results`);
-                  if (resultsResponse.ok) {
-                    const resultsData = await resultsResponse.json();
-                    if (resultsData.success) {
-                      setEvaluationResults({
-                        model: resultsData.model,
-                        lexicon: resultsData.lexicon,
-                        external: resultsData.external,
-                        hybrid: resultsData.hybrid
-                      });
-                      // 重新加载缓存
-                      loadCachedEvaluationResult();
-                    } else {
-                      // 显示错误信息
-                      alert('评估完成但获取结果失败：' + (resultsData.message || '未知错误'));
-                      console.error('评估结果错误:', resultsData);
-                    }
-                  }
-                }
-              }
-            } catch (error) {
-              console.error('获取评估状态失败:', error);
-            }
-          }, 1000);
-        } else {
-          // 启动失败，显示错误信息
-          alert('启动评估失败：' + (data.message || '未知错误'));
-          console.error('启动评估失败:', data);
-        }
-      } else {
-        const error = await response.json();
-        alert('启动评估失败：' + (error.message || error.detail || '未知错误'));
-      }
-    } catch (error) {
-      console.error('启动混合评估失败:', error);
-      alert('启动混合评估失败，请重试');
+      setEvaluationResults(null);
+      setEvaluationChartImage('');
+      setShowHybridModal(false);
+      pollEvaluationStatus();
+    } else {
+      alert('启动评估失败：' + (result.data?.message || result.detail || '未知错误'));
     }
   };
 
-  // 导出评估结果为CSV
   const exportEvaluationCSV = async () => {
     if (!evaluationResults) {
       alert('暂无评估结果可导出');
@@ -378,39 +257,25 @@ const EvaluationTab: React.FC = () => {
     
     setExportingEvaluation(true);
     try {
-      const token = localStorage.getItem('training_token');
-      const headers: HeadersInit = token ? {
-        'Authorization': `Bearer ${token}`
-      } : {};
-      
-      const response = await fetch(`${API_ENDPOINTS.evaluation}/export?format=csv`, {
-        headers: headers
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          const blob = new Blob(['\ufeff' + data.content], { type: 'text/csv;charset=utf-8;' });
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = data.filename;
-          link.click();
-          alert('CSV 导出成功');
-        } else {
-          alert('导出失败：' + (data.message || '未知错误'));
-        }
+      const result = await apiClient.get<{ success: boolean; content?: string; filename?: string; message?: string }>(
+        `${API_ENDPOINTS.evaluation}/export?format=csv`,
+        { showErrorMessage: false }
+      );
+      if (result.success && result.data?.success) {
+        const blob = new Blob(['\ufeff' + result.data.content], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = result.data.filename || 'evaluation_results.csv';
+        link.click();
+        alert('CSV 导出成功');
       } else {
-        const error = await response.json();
-        alert('导出失败：' + (error.detail || error.message || '未知错误'));
+        alert('导出失败：' + (result.data?.message || result.detail || '未知错误'));
       }
-    } catch (error) {
-      console.error('导出 CSV 失败:', error);
-      alert('导出失败：' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
       setExportingEvaluation(false);
     }
   };
 
-  // 生成评估对比图表
   const generateEvaluationCharts = async () => {
     if (!evaluationResults) {
       alert('暂无评估结果可生成图表');
@@ -419,36 +284,22 @@ const EvaluationTab: React.FC = () => {
     
     setExportingEvaluation(true);
     try {
-      const token = localStorage.getItem('training_token');
-      const headers: HeadersInit = token ? {
-        'Authorization': `Bearer ${token}`
-      } : {};
-      
-      const response = await fetch(`${API_ENDPOINTS.evaluation}/charts`, {
-        method: 'POST',
-        headers: headers
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setEvaluationChartImage(`data:image/png;base64,${data.png_base64}`);
-          alert('图表生成成功');
-        } else {
-          alert('生成图表失败：' + (data.message || '未知错误'));
-        }
+      const result = await apiClient.post<{ success: boolean; png_base64?: string; message?: string }>(
+        `${API_ENDPOINTS.evaluation}/charts`,
+        undefined,
+        { showErrorMessage: false }
+      );
+      if (result.success && result.data?.success) {
+        setEvaluationChartImage(`data:image/png;base64,${result.data.png_base64}`);
+        alert('图表生成成功');
       } else {
-        const error = await response.json();
-        alert('生成图表失败：' + (error.detail || error.message || '未知错误'));
+        alert('生成图表失败：' + (result.data?.message || result.detail || '未知错误'));
       }
-    } catch (error) {
-      console.error('生成图表失败:', error);
-      alert('生成图表失败：' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
       setExportingEvaluation(false);
     }
   };
 
-  // 导出评估图表
   const exportEvaluationChart = () => {
     if (!evaluationChartImage) {
       alert('请先生成图表');
@@ -460,6 +311,13 @@ const EvaluationTab: React.FC = () => {
     link.download = `三通道对比实验图表_${new Date().toLocaleDateString()}.png`;
     link.click();
     alert('图表已下载');
+  };
+
+  const clearEvaluationCache = async () => {
+    await apiClient.post(`${API_ENDPOINTS.evaluation}/clear-cache`, undefined, { showErrorMessage: false });
+    setCachedEvaluationResult(null);
+    setEvaluationChartImage('');
+    setEvaluationResults(null);
   };
 
   return (
@@ -590,7 +448,6 @@ const EvaluationTab: React.FC = () => {
         </div>
       </div>
 
-      {/* 评估结果操作按钮 - 放在框外 */}
       {evaluationResults && (
         <div className="flex flex-wrap gap-4 mb-4">
           <button
@@ -637,16 +494,7 @@ const EvaluationTab: React.FC = () => {
                 </span>
               )}
               <button
-                onClick={async () => {
-                  try {
-                    await fetch(`${API_ENDPOINTS.evaluation}/clear-cache`, { method: 'POST' });
-                    setCachedEvaluationResult(null);
-                    setEvaluationChartImage('');
-                    setEvaluationResults(null);
-                  } catch (error) {
-                    console.error('清除缓存失败:', error);
-                  }
-                }}
+                onClick={clearEvaluationCache}
                 className="text-sm text-red-500 hover:text-red-700 underline"
               >
                 清除缓存
@@ -676,7 +524,6 @@ const EvaluationTab: React.FC = () => {
             </div>
           )}
 
-          {/* 结果卡片 */}
           <div className="grid md:grid-cols-3 gap-4">
             {evaluationResults.model && (
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
@@ -778,7 +625,6 @@ const EvaluationTab: React.FC = () => {
             )}
           </div>
 
-          {/* 混合评估结果卡片 */}
           {evaluationResults.hybrid && (
             <div className="mt-6 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-6 border-2 border-purple-300">
               <h5 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 text-lg">
@@ -786,7 +632,6 @@ const EvaluationTab: React.FC = () => {
                 混合推理评估结果（词典 + 深度学习）
               </h5>
               
-              {/* 第一行：性能指标 */}
               <div className="grid grid-cols-5 gap-4 mb-4">
                 <div className="bg-white rounded-lg p-4 border border-purple-200">
                   <div className="text-sm text-gray-600 mb-1">准确率</div>
@@ -810,7 +655,6 @@ const EvaluationTab: React.FC = () => {
                 </div>
               </div>
               
-              {/* 第二行：混合统计 */}
               <div className="grid grid-cols-5 gap-4">
                 <div className="bg-purple-100 rounded-lg p-3 border border-purple-300">
                   <div className="text-xs text-purple-700 mb-1">情感词典比例</div>
@@ -848,7 +692,6 @@ const EvaluationTab: React.FC = () => {
             </div>
           )}
 
-          {/* 错误样本分析 */}
           {(errorSamples.model.length > 0 || errorSamples.lexicon.length > 0 || errorSamples.hybrid?.length > 0) && (
             <div className="mt-6">
               <h5 className="font-semibold text-gray-900 mb-3">错误样本分析</h5>
@@ -942,7 +785,6 @@ const EvaluationTab: React.FC = () => {
         </div>
       )}
       
-      {/* 混合推理设置面板 */}
       {showHybridModal && (
         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-200 mb-6">
           <div className="flex items-center justify-between mb-6">
@@ -963,7 +805,6 @@ const EvaluationTab: React.FC = () => {
           </div>
             
             <div className="space-y-6">
-              {/* 配置说明 */}
               <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
                 <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                   <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1005,7 +846,6 @@ const EvaluationTab: React.FC = () => {
                 </div>
               </div>
               
-              {/* 阈值滑块 */}
               <div className="space-y-5">
                 <div>
                   <div className="flex justify-between items-center mb-2">
@@ -1069,7 +909,6 @@ const EvaluationTab: React.FC = () => {
               </div>
             </div>
             
-            {/* 操作按钮 */}
             <div className="flex gap-3 mt-8 pt-6 border-t border-purple-200">
               <button
                 onClick={() => setHybridThresholds({ lexicon_threshold: 0.70, lexicon_score_threshold: 3.0 })}

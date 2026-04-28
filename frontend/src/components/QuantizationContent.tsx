@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { API_ENDPOINTS } from '../config/api';
+import { apiClient } from '../utils/api';
 
 type PrecisionMode = 'fp32' | 'fp16' | 'int8';
 type ComparisonType = 'fp32_vs_fp16' | 'fp32_vs_int8' | 'fp16_vs_int8';
@@ -49,23 +50,10 @@ const QuantizationContent: React.FC = () => {
   const [improvement, setImprovement] = useState<Improvement | null>(null);
   const [experimentTime, setExperimentTime] = useState<number>(0);
 
-  const getAuthHeader = () => ({
-    'Authorization': `Bearer ${localStorage.getItem('training_token')}`,
-    'Content-Type': 'application/json'
-  });
-
   const fetchGlobalMode = async () => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.api}/quantization/mode`, {
-        headers: getAuthHeader()
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setGlobalMode(data);
-      }
-    } catch (err) {
-      console.error('获取全局模式失败:', err);
+    const result = await apiClient.get<GlobalModeStatus>(`${API_ENDPOINTS.api}/quantization/mode`, { showErrorMessage: false });
+    if (result.success && result.data) {
+      setGlobalMode(result.data);
     }
   };
 
@@ -76,136 +64,76 @@ const QuantizationContent: React.FC = () => {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
+
     setLoading(true);
     setError('');
-    
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch(`${API_ENDPOINTS.api}/quantization/testset/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('training_token')}`
-        },
-        body: formData
+
+    const result = await apiClient.uploadFile(`${API_ENDPOINTS.api}/quantization/testset/upload`, file);
+
+    if (result.success && result.data) {
+      setTestsetDataInfo({
+        total: result.data.info.sample_count,
+        label_distribution: result.data.info.label_distribution
       });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        setTestsetDataInfo({
-          total: data.info.sample_count,
-          label_distribution: data.info.label_distribution
-        });
-        setComparisonResults(null);
-        setImprovement(null);
-      } else {
-        setError(data.detail || '上传失败');
-        alert(data.detail || '上传失败');
-      }
-    } catch (err) {
-      console.error('上传失败:', err);
-      setError('网络错误');
-      alert('网络错误');
-    } finally {
-      setLoading(false);
-      event.target.value = '';
+      setComparisonResults(null);
+      setImprovement(null);
+    } else {
+      setError(result.detail || '上传失败');
     }
+
+    setLoading(false);
+    event.target.value = '';
   };
 
   const handleQuantizeFp16 = async () => {
     if (!confirm('确定要执行 FP16 量化吗？这可能需要几分钟时间。')) return;
-    
+
     setQuantizingFp16(true);
     setError('');
-    
-    try {
-      const response = await fetch(`${API_ENDPOINTS.api}/quantization/quantize/fp16`, {
-        method: 'POST',
-        headers: getAuthHeader()
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        alert(`FP16 量化成功！\n${data.message}`);
-        await fetchGlobalMode();
-      } else {
-        setError(data.detail || 'FP16 量化失败');
-        alert(data.detail || 'FP16 量化失败');
-      }
-    } catch (err) {
-      console.error('FP16 量化失败:', err);
-      setError('网络错误');
-      alert('网络错误');
-    } finally {
-      setQuantizingFp16(false);
+
+    const result = await apiClient.post(`${API_ENDPOINTS.api}/quantization/quantize/fp16`);
+
+    if (result.success && result.data) {
+      alert(`FP16 量化成功！\n${result.data.message}`);
+      await fetchGlobalMode();
+    } else {
+      setError(result.detail || 'FP16 量化失败');
     }
+
+    setQuantizingFp16(false);
   };
 
   const handleQuantizeInt8 = async () => {
     if (!confirm('确定要执行 INT8 量化吗？这可能需要几分钟时间。\n\n注意：INT8 模型只能在 CPU 上运行。')) return;
-    
+
     setQuantizingInt8(true);
     setError('');
-    
-    try {
-      const response = await fetch(`${API_ENDPOINTS.api}/quantization/quantize/int8`, {
-        method: 'POST',
-        headers: getAuthHeader()
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        alert(`INT8 量化成功！\n${data.message}`);
-        await fetchGlobalMode();
-      } else {
-        setError(data.detail || 'INT8 量化失败');
-        alert(data.detail || 'INT8 量化失败');
-      }
-    } catch (err) {
-      console.error('INT8 量化失败:', err);
-      setError('网络错误');
-      alert('网络错误');
-    } finally {
-      setQuantizingInt8(false);
+
+    const result = await apiClient.post(`${API_ENDPOINTS.api}/quantization/quantize/int8`);
+
+    if (result.success && result.data) {
+      alert(`INT8 量化成功！\n${result.data.message}`);
+      await fetchGlobalMode();
+    } else {
+      setError(result.detail || 'INT8 量化失败');
     }
+
+    setQuantizingInt8(false);
   };
 
   const handleSwitchMode = async (mode: PrecisionMode) => {
     setSwitching(true);
     setError('');
-    try {
-      const response = await fetch(`${API_ENDPOINTS.api}/quantization/switch`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-        body: JSON.stringify({ mode })
-      });
-      
-      // 检查 HTTP 状态码
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      // 检查业务逻辑是否成功
-      if (!data.success) {
-        throw new Error(data.detail || '切换失败');
-      }
-      
+
+    const result = await apiClient.post(`${API_ENDPOINTS.api}/quantization/switch`, { mode });
+
+    if (result.success) {
       await fetchGlobalMode();
-    } catch (err) {
-      console.error('切换失败:', err);
-      const errorMessage = err instanceof Error ? err.message : '网络错误';
-      setError(errorMessage);
-      alert(errorMessage);
-    } finally {
-      setSwitching(false);
+    } else {
+      setError(result.detail || '切换失败');
     }
+
+    setSwitching(false);
   };
 
   const handleRunComparison = async () => {
@@ -213,36 +141,23 @@ const QuantizationContent: React.FC = () => {
       alert('请先上传测试数据集');
       return;
     }
-    
+
     setTesting(true);
     setError('');
     setComparisonResults(null);
     setImprovement(null);
-    
-    try {
-      const response = await fetch(`${API_ENDPOINTS.api}/quantization/compare`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-        body: JSON.stringify({ comparison_type: comparisonType })
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
-        setComparisonResults(data.results);
-        setImprovement(data.improvement);
-        setExperimentTime(data.experiment_time);
-      } else {
-        setError(data.detail || '对比测试失败');
-        alert(data.detail || '对比测试失败');
-      }
-    } catch (err) {
-      console.error('对比测试失败:', err);
-      setError('网络错误');
-      alert('网络错误');
-    } finally {
-      setTesting(false);
+
+    const result = await apiClient.post(`${API_ENDPOINTS.api}/quantization/compare`, { comparison_type: comparisonType });
+
+    if (result.success && result.data) {
+      setComparisonResults(result.data.results);
+      setImprovement(result.data.improvement);
+      setExperimentTime(result.data.experiment_time);
+    } else {
+      setError(result.detail || '对比测试失败');
     }
+
+    setTesting(false);
   };
 
   const handleExportResults = () => {
@@ -256,7 +171,7 @@ const QuantizationContent: React.FC = () => {
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `quantization_experiment_${comparisonType}_${timestamp}.txt`;
-    
+
     const content = `
 ================================================================================
                       模型量化对比实验报告
@@ -336,8 +251,8 @@ const QuantizationContent: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">当前模式:</span>
               <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                globalMode.current_mode === 'fp32' 
-                  ? 'bg-blue-100 text-blue-700' 
+                globalMode.current_mode === 'fp32'
+                  ? 'bg-blue-100 text-blue-700'
                   : globalMode.current_mode === 'fp16'
                   ? 'bg-green-100 text-green-700'
                   : 'bg-orange-100 text-orange-700'
@@ -347,11 +262,11 @@ const QuantizationContent: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         <div className="grid md:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl p-6 border border-gray-200">
             <h4 className="text-lg font-semibold text-gray-900 mb-4">1. 模型选择器</h4>
-            
+
             {globalMode && (
               <div className="mb-4 space-y-2 text-sm">
                 <div className="flex justify-between items-center">
@@ -368,7 +283,7 @@ const QuantizationContent: React.FC = () => {
                 </div>
               </div>
             )}
-            
+
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -405,7 +320,7 @@ const QuantizationContent: React.FC = () => {
                   INT8
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleQuantizeFp16}
@@ -462,7 +377,7 @@ const QuantizationContent: React.FC = () => {
 
       <div className="bg-white rounded-2xl p-6 border border-gray-200">
         <h4 className="text-lg font-semibold text-gray-900 mb-4">3. 运行对比测试</h4>
-        
+
         <div className="mb-4">
           <label className="block text-sm text-gray-600 mb-2">选择对比类型</label>
           <select
@@ -475,7 +390,7 @@ const QuantizationContent: React.FC = () => {
             <option value="fp16_vs_int8">FP16 vs INT8 (GPU vs CPU) </option>
           </select>
         </div>
-        
+
         {testsetDataInfo && (
           <button
             onClick={handleRunComparison}
@@ -485,7 +400,7 @@ const QuantizationContent: React.FC = () => {
             {testing ? '测试中...' : '开始对比测试'}
           </button>
         )}
-        
+
         {!testsetDataInfo && (
           <button
             disabled
@@ -515,7 +430,7 @@ const QuantizationContent: React.FC = () => {
               </button>
             </div>
           </div>
-          
+
           <div className="grid md:grid-cols-2 gap-4">
             {comparisonResults.map((result, index) => {
               const badge = getModelTypeBadge(result.mode, result.device);
@@ -552,7 +467,7 @@ const QuantizationContent: React.FC = () => {
               );
             })}
           </div>
-          
+
           {improvement && (
             <div className="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-200">
               <h5 className="font-semibold text-purple-900 mb-2">性能提升</h5>
