@@ -33,6 +33,9 @@ class ApiClient {
       if (showErrorMessage) {
         alert('登录已过期，请重新登录');
       }
+      if (window.location.pathname !== '/training') {
+        window.location.href = '/training';
+      }
       return {
         success: false,
         detail: '登录已过期，请重新登录',
@@ -166,6 +169,67 @@ class ApiClient {
         alert(errorMessage);
       }
       return { success: false, detail: errorMessage };
+    }
+  }
+
+  async download(
+    endpoint: string,
+    body?: any,
+    filename: string = 'download',
+    options?: Omit<ApiRequestOptions, 'method' | 'body' | 'headers'>
+  ): Promise<boolean> {
+    const { requireAuth = true, showErrorMessage = true } = options || {};
+
+    const token = requireAuth ? this.getToken() : null;
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem('training_token');
+        if (showErrorMessage) {
+          alert('登录已过期，请重新登录');
+        }
+        if (window.location.pathname !== '/training') {
+          window.location.href = '/training';
+        }
+        return false;
+      }
+
+      if (!response.ok) {
+        let detail = `下载失败: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          detail = errorData.detail || errorData.message || detail;
+        } catch {}
+        if (showErrorMessage) {
+          alert(detail);
+        }
+        return false;
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+      return true;
+    } catch (error) {
+      console.error('下载失败:', error);
+      if (showErrorMessage) {
+        alert('下载失败，请检查网络连接');
+      }
+      return false;
     }
   }
 }

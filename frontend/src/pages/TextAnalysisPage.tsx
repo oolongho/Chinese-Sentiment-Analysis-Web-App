@@ -337,28 +337,6 @@ const TextAnalysisPage: React.FC = () => {
     }
   };
 
-  const downloadBlob = async (url: string, body: any, filename: string) => {
-    const token = localStorage.getItem('training_token');
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body)
-    });
-    if (response.ok) {
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(blobUrl);
-      document.body.removeChild(a);
-    }
-  };
-
   const exportResults = async () => {
     if (resultsList.length === 0) return;
 
@@ -375,11 +353,7 @@ const TextAnalysisPage: React.FC = () => {
       external_confidence: r.models.external?.confidence || 0
     }));
 
-    try {
-      await downloadBlob(`${API_ENDPOINTS.text}/export-results`, { results: exportData, format: 'xlsx' }, 'analysis_results.xlsx');
-    } catch (error) {
-      console.error('导出失败:', error);
-    }
+    await apiClient.download(`${API_ENDPOINTS.text}/export-results`, { results: exportData, format: 'xlsx' }, 'analysis_results.xlsx');
   };
 
   const exportPerformance = async () => {
@@ -396,11 +370,7 @@ const TextAnalysisPage: React.FC = () => {
       external_time: r.models.external ? Math.round(r.models.external.analysisTime * 1000) : 0
     }));
 
-    try {
-      await downloadBlob(`${API_ENDPOINTS.text}/export-performance`, { results: exportData, format: 'xlsx' }, 'performance_data.xlsx');
-    } catch (error) {
-      console.error('导出失败:', error);
-    }
+    await apiClient.download(`${API_ENDPOINTS.text}/export-performance`, { results: exportData, format: 'xlsx' }, 'performance_data.xlsx');
   };
 
   const currentResult = resultsList[currentPage];
