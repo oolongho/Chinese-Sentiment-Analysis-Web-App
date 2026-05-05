@@ -7,12 +7,6 @@ from config import load_external_api_config
 async def call_text_api(text: str) -> Dict:
     """
     调用外部文本分析API（OpenAI格式）
-    
-    Args:
-        text: 要分析的文本
-        
-    Returns:
-        分析结果
     """
     config = load_external_api_config()
     
@@ -109,12 +103,6 @@ async def call_text_api(text: str) -> Dict:
 async def call_audio_api(audio_path: str) -> Dict:
     """
     调用外部语音识别API（OpenAI格式）
-    
-    Args:
-        audio_path: 音频文件路径
-        
-    Returns:
-        转写和分析结果
     """
     config = load_external_api_config()
     
