@@ -24,8 +24,6 @@ class LexiconAnalyzer:
     def __init__(self, config: Dict = None):
         """
         初始化情感分析器
-        
-        Args:
             config: 配置字典，用于控制各优化模块的启用/禁用
                 - enable_negation: 是否启用否定词处理 (默认True)
                 - enable_degree: 是否启用程度副词加权 (默认True)
@@ -196,12 +194,6 @@ class LexiconAnalyzer:
     def segment(self, text: str) -> List[str]:
         """
         分词并过滤停用词
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            分词后的词列表（已过滤停用词）
         """
         words = jieba.lcut(text)
         # 使用集合查找，O(1) 时间复杂度
@@ -209,13 +201,7 @@ class LexiconAnalyzer:
     
     def analyze(self, text: str) -> Dict:
         """
-        分析文本情感（带缓存）
-        
-        Args:
-            text: 输入文本
-            
-        Returns:
-            分析结果字典
+        分析文本情感
         """
         # 使用缓存机制
         return self._analyze_cached(text)
@@ -223,14 +209,6 @@ class LexiconAnalyzer:
     def _count_negations_in_window(self, words: List[str], current_idx: int) -> int:
         """
         统计当前词前3个词中的否定词数量
-        支持双重否定处理（偶数个否定词相互抵消）
-
-        Args:
-            words: 分词后的词列表
-            current_idx: 当前词的索引
-
-        Returns:
-            否定词数量
         """
         # 如果禁用否定词处理，直接返回0
         if not self.config.get('enable_negation', True):
@@ -261,13 +239,6 @@ class LexiconAnalyzer:
     def _check_degree_in_window(self, words: List[str], current_idx: int) -> float:
         """
         检查当前词的前3个词中是否包含程度副词
-
-        Args:
-            words: 分词后的词列表
-            current_idx: 当前词的索引
-
-        Returns:
-            程度权重，默认1.0
         """
         # 如果禁用程度副词处理，直接返回1.0（无加权）
         if not self.config.get('enable_degree', True):
@@ -288,15 +259,6 @@ class LexiconAnalyzer:
     def _check_special_patterns(self, words: List[str], current_idx: int, word: str) -> float:
         """
         检查特殊搭配模式
-        处理如"不后悔"、"没有惊喜"、"没发现问题"等特殊表达
-        
-        Args:
-            words: 分词后的词列表
-            current_idx: 当前词的索引
-            word: 当前词
-            
-        Returns:
-            修正后的修饰符，如果没有特殊模式则返回None
         """
         # 如果禁用特殊搭配模式处理，直接返回None
         if not self.config.get('enable_pattern', True):
@@ -379,12 +341,6 @@ class LexiconAnalyzer:
     def _analyze_cached(self, text: str) -> Dict:
         """
         带缓存的情感分析核心方法
-
-        Args:
-            text: 输入文本
-
-        Returns:
-            分析结果字典
         """
         words = self.segment(text)
 
@@ -444,19 +400,6 @@ class LexiconAnalyzer:
     def _classify_sentiment(self, score: float, word_count: int, word_scores: List[Dict] = None) -> str:
         """
         根据得分和文本长度动态分类情感
-        
-        优化策略：
-        1. 根据文本长度设置不同阈值
-        2. 考虑情感词数量和强度
-        3. 对于弱情感信号倾向于中性
-
-        Args:
-            score: 情感得分
-            word_count: 文本词数
-            word_scores: 情感词得分列表（可选）
-
-        Returns:
-            情感分类（正面/负面/中性）
         """
         # 如果禁用动态阈值，使用固定阈值
         if not self.config.get('enable_dynamic_threshold', True):
@@ -504,13 +447,6 @@ class LexiconAnalyzer:
     def _calculate_sentiment_ratio(self, word_scores: List[Dict], total_words: int) -> float:
         """
         计算情感词占比
-        
-        Args:
-            word_scores: 情感词得分列表
-            total_words: 总词数
-            
-        Returns:
-            情感词占比（0-1之间）
         """
         if total_words == 0:
             return 0.0
@@ -519,13 +455,6 @@ class LexiconAnalyzer:
     def _calculate_consistency(self, word_scores: List[Dict]) -> float:
         """
         计算情感一致性
-        正面词和负面词的比例一致性，值越接近1表示一致性越高
-        
-        Args:
-            word_scores: 情感词得分列表
-            
-        Returns:
-            情感一致性（0-1之间）
         """
         if not word_scores:
             return 0.5
@@ -543,20 +472,7 @@ class LexiconAnalyzer:
     
     def _calculate_confidence(self, score: float, word_scores: List[Dict], total_words: int) -> float:
         """
-        计算置信度（综合多因素）
-        
-        综合考虑：
-        1. 情感词占比（权重0.3）
-        2. 情感一致性（权重0.3）
-        3. 平均情感强度（权重0.4）
-        
-        Args:
-            score: 总情感得分
-            word_scores: 情感词得分列表
-            total_words: 总词数
-            
-        Returns:
-            置信度（0.3-0.99之间）
+        计算置信度
         """
         if not word_scores:
             return 0.3

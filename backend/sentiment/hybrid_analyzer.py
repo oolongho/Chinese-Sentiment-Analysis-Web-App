@@ -31,8 +31,8 @@ class HybridAnalyzer:
         
         # 默认配置（基于实验最优配置：lexicon_threshold=0.70, lexicon_score_threshold=3.0，准确率 96.5%）
         self.default_config = {
-            'lexicon_threshold': 0.70,  # 词典置信度阈值（论文推荐值）
-            'lexicon_score_threshold': 3.0,  # 词典得分阈值（论文推荐值）
+            'lexicon_threshold': 0.70,  # 词典置信度阈值
+            'lexicon_score_threshold': 3.0,  # 词典得分阈值
             'roberta_weight': 0.7,  # RoBERTa 权重
             'enable_speed_optimization': True,  # 启用速度优化
             'max_fast_path_length': 30,         # 快速路径最大文本长度
