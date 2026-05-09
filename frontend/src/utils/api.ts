@@ -83,12 +83,19 @@ class ApiClient {
       showErrorMessage = true,
     } = options;
 
-    const authHeaders = requireAuth ? this.getAuthHeaders() : undefined;
+    const token = requireAuth ? this.getToken() : null;
+    const computedHeaders: HeadersInit = { ...headers };
+    if (body) {
+      (computedHeaders as Record<string, string>)['Content-Type'] = 'application/json';
+    }
+    if (token) {
+      (computedHeaders as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+    }
 
     try {
       const response = await fetch(endpoint, {
         method,
-        headers: { ...authHeaders, ...headers },
+        headers: computedHeaders,
         body: body ? JSON.stringify(body) : undefined,
       });
 
